@@ -14,8 +14,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utilities", "Source\Utiliti
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wake", "Source\WAKE\Wake\Wake.csproj", "{CDFB3464-4041-42B1-9271-83AF24CD5008}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Examples", "Source\TANG\Examples\Examples.csproj", "{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReefCommon", "Source\REEF\reef-common\ReefCommon\ReefCommon.csproj", "{545A0582-4105-44CE-B99C-B1379514A630}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReefDriver", "Source\REEF\reef-common\ReefDriver\ReefDriver.csproj", "{A6BAA2A7-F52F-4329-884E-1BCF711D6805}"
@@ -44,6 +42,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReefTests", "Tests\ReefTest
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Apache.Reef.Tang", "Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj", "{97DBB573-3994-417A-9F69-FFA25F00D2A6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Apache.Reef.Tang.Examples", "Org.Apache.Reef.Tang.Examples\Org.Apache.Reef.Tang.Examples.csproj", "{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,14 +68,6 @@ Global
 		{CDFB3464-4041-42B1-9271-83AF24CD5008}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CDFB3464-4041-42B1-9271-83AF24CD5008}.Release|x64.ActiveCfg = Release|x64
 		{CDFB3464-4041-42B1-9271-83AF24CD5008}.Release|x64.Build.0 = Release|x64
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|x64.ActiveCfg = Debug|x64
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|x64.Build.0 = Debug|x64
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Release|x64.ActiveCfg = Release|x64
-		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Release|x64.Build.0 = Release|x64
 		{545A0582-4105-44CE-B99C-B1379514A630}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{545A0582-4105-44CE-B99C-B1379514A630}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{545A0582-4105-44CE-B99C-B1379514A630}.Debug|x64.ActiveCfg = Debug|x64
@@ -188,6 +180,14 @@ Global
 		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|x64.ActiveCfg = Release|x64
 		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|x64.Build.0 = Release|x64
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Debug|x64.ActiveCfg = Debug|x64
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Debug|x64.Build.0 = Debug|x64
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|Any CPU.Build.0 = Release|Any CPU
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|x64.ActiveCfg = Release|x64
+		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

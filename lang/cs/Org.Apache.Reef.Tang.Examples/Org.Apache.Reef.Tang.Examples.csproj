@@ -20,7 +20,7 @@ under the License.
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}</ProjectGuid>
+    <ProjectGuid>{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Org.Apache.Reef.Tang.Examples</RootNamespace>
@@ -99,7 +99,7 @@ under the License.
       <Project>{cdfb3464-4041-42b1-9271-83af24cd5008}</Project>
       <Name>Wake</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\..\Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj">
+    <ProjectReference Include="..\Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj">
       <Project>{97dbb573-3994-417a-9f69-ffa25f00d2a6}</Project>
       <Name>Org.Apache.Reef.Tang</Name>
     </ProjectReference>
