@@ -23,12 +23,12 @@ under the License.
     <ProjectGuid>{34A9CD98-0D15-4CA0-AEA5-E53593A31047}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Org.Apache.Reef.Tools.ClassHierarchyBuilder</RootNamespace>
-    <AssemblyName>Org.Apache.Reef.Tools.ClassHierarchyBuilder</AssemblyName>
+    <RootNamespace>Org.Apache.Reef.Tang.Tools</RootNamespace>
+    <AssemblyName>Org.Apache.Reef.Tang.Tools</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <RestorePackages>true</RestorePackages>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\..</SolutionDir>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
   </PropertyGroup>
   <Import Project="$(SolutionDir)\Source\build.props" />
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -36,7 +36,7 @@ under the License.
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>$(BinDir)\$(Platform)\$(Configuration)\$(RootNamespace)</OutputPath>
+    <OutputPath>$(BinDir)\bin\AnyCPU\Debug\Org.Apache.Reef.Tools\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -91,7 +91,7 @@ under the License.
       <Project>{75503f90-7b82-4762-9997-94b5c68f15db}</Project>
       <Name>Tasks</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\..\Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj">
+    <ProjectReference Include="$(SolutionDir)\Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj">
       <Project>{97dbb573-3994-417a-9f69-ffa25f00d2a6}</Project>
       <Name>Org.Apache.Reef.Tang</Name>
     </ProjectReference>
