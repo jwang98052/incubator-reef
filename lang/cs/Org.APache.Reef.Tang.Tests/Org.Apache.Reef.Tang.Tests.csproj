@@ -171,6 +171,10 @@ under the License.
       <Project>{97dbb573-3994-417a-9f69-ffa25f00d2a6}</Project>
       <Name>Org.Apache.Reef.Tang</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Org.Apache.Reef.Utilities\Org.Apache.Reef.Utilities.csproj">
+      <Project>{79e7f89a-1dfb-45e1-8d43-d71a954aeb98}</Project>
+      <Name>Org.Apache.Reef.Utilities</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Source\REEF\reef-common\ReefCommon\ReefCommon.csproj">
       <Project>{545a0582-4105-44ce-b99c-b1379514a630}</Project>
       <Name>ReefCommon</Name>
