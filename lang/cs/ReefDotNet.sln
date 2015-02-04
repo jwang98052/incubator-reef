@@ -1,4 +1,5 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -12,8 +13,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utilities", "Source\Utilities\Utilities.csproj", "{79E7F89A-1DFB-45E1-8D43-D71A954AEB98}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wake", "Source\WAKE\Wake\Wake.csproj", "{CDFB3464-4041-42B1-9271-83AF24CD5008}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tang", "Source\TANG\Tang\Tang.csproj", "{97DBB573-3994-417A-9F69-FFA25F00D2A6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Examples", "Source\TANG\Examples\Examples.csproj", "{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}"
 EndProject
@@ -43,6 +42,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WakeTests", "Tests\WakeTest
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReefTests", "Tests\ReefTests\ReefTests.csproj", "{988F90CF-A48D-4938-A4D2-FA3B758FB5A7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Apache.Reef.Tang", "Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj", "{97DBB573-3994-417A-9F69-FFA25F00D2A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -67,14 +68,6 @@ Global
 		{CDFB3464-4041-42B1-9271-83AF24CD5008}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CDFB3464-4041-42B1-9271-83AF24CD5008}.Release|x64.ActiveCfg = Release|x64
 		{CDFB3464-4041-42B1-9271-83AF24CD5008}.Release|x64.Build.0 = Release|x64
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|x64.ActiveCfg = Debug|x64
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|x64.Build.0 = Debug|x64
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|x64.ActiveCfg = Release|x64
-		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|x64.Build.0 = Release|x64
 		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{31B4389E-925A-4181-A1F6-21A1A0AD8A1C}.Debug|x64.ActiveCfg = Debug|x64
@@ -187,6 +180,14 @@ Global
 		{988F90CF-A48D-4938-A4D2-FA3B758FB5A7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{988F90CF-A48D-4938-A4D2-FA3B758FB5A7}.Release|x64.ActiveCfg = Release|x64
 		{988F90CF-A48D-4938-A4D2-FA3B758FB5A7}.Release|x64.Build.0 = Release|x64
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|x64.ActiveCfg = Debug|x64
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Debug|x64.Build.0 = Debug|x64
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|x64.ActiveCfg = Release|x64
+		{97DBB573-3994-417A-9F69-FFA25F00D2A6}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

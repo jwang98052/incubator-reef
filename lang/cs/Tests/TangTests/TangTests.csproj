@@ -161,6 +161,10 @@ under the License.
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj">
+      <Project>{97dbb573-3994-417a-9f69-ffa25f00d2a6}</Project>
+      <Name>Org.Apache.Reef.Tang</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\Source\REEF\reef-common\ReefCommon\ReefCommon.csproj">
       <Project>{545a0582-4105-44ce-b99c-b1379514a630}</Project>
       <Name>ReefCommon</Name>
@@ -172,10 +176,6 @@ under the License.
     <ProjectReference Include="..\..\Source\TANG\Examples\Examples.csproj">
       <Project>{31b4389e-925a-4181-a1f6-21a1a0ad8a1c}</Project>
       <Name>Examples</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\..\Source\TANG\Tang\Tang.csproj">
-      <Project>{97dbb573-3994-417a-9f69-ffa25f00d2a6}</Project>
-      <Name>Tang</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\Source\WAKE\Wake\Wake.csproj">
       <Project>{cdfb3464-4041-42b1-9271-83af24cd5008}</Project>
