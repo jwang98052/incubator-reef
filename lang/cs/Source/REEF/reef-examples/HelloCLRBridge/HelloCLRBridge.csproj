@@ -98,10 +98,6 @@ under the License.
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SourceDir)\WAKE\Wake\Wake.csproj">
-      <Project>{cdfb3464-4041-42b1-9271-83af24cd5008}</Project>
-      <Name>Wake</Name>
-    </ProjectReference>
     <ProjectReference Include="$(SourceDir)\Reef\reef-common\ReefCommon\ReefCommon.csproj">
       <Project>{545a0582-4105-44ce-b99c-b1379514a630}</Project>
       <Name>ReefCommon</Name>
@@ -125,6 +121,10 @@ under the License.
     <ProjectReference Include="$(SolutionDir)\Org.Apache.Reef.Utilities\Org.Apache.Reef.Utilities.csproj">
       <Project>{79e7f89a-1dfb-45e1-8d43-d71a954aeb98}</Project>
       <Name>Org.Apache.Reef.Utilities</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\..\Org.Apache.Reef.Wake\Org.Apache.Reef.Wake.csproj">
+      <Project>{cdfb3464-4041-42b1-9271-83af24cd5008}</Project>
+      <Name>Org.Apache.Reef.Wake</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
