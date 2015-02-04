@@ -34,8 +34,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassHierarchyBuilder", "So
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReefAll", "Source\Tools\ReefAll\ReefAll.csproj", "{4C137C79-3A28-47D2-BFB9-A3CAB1EEDACE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TangTests", "Tests\TangTests\TangTests.csproj", "{D5EB94D0-3ABA-4853-9050-E36B196E17D2}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WakeTests", "Tests\WakeTests\WakeTests.csproj", "{214C64C6-04E5-4867-B69A-E3502EA50871}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReefTests", "Tests\ReefTests\ReefTests.csproj", "{988F90CF-A48D-4938-A4D2-FA3B758FB5A7}"
@@ -43,6 +41,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Apache.Reef.Tang", "Org.Apache.Reef.Tang\Org.Apache.Reef.Tang.csproj", "{97DBB573-3994-417A-9F69-FFA25F00D2A6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Apache.Reef.Tang.Examples", "Org.Apache.Reef.Tang.Examples\Org.Apache.Reef.Tang.Examples.csproj", "{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Apache.Reef.Tang.Tests", "Org.APache.Reef.Tang.Tests\Org.Apache.Reef.Tang.Tests.csproj", "{D5EB94D0-3ABA-4853-9050-E36B196E17D2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -148,14 +148,6 @@ Global
 		{4C137C79-3A28-47D2-BFB9-A3CAB1EEDACE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4C137C79-3A28-47D2-BFB9-A3CAB1EEDACE}.Release|x64.ActiveCfg = Release|x64
 		{4C137C79-3A28-47D2-BFB9-A3CAB1EEDACE}.Release|x64.Build.0 = Release|x64
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|x64.ActiveCfg = Debug|x64
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|x64.Build.0 = Debug|x64
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|x64.ActiveCfg = Release|x64
-		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|x64.Build.0 = Release|x64
 		{214C64C6-04E5-4867-B69A-E3502EA50871}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{214C64C6-04E5-4867-B69A-E3502EA50871}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{214C64C6-04E5-4867-B69A-E3502EA50871}.Debug|x64.ActiveCfg = Debug|x64
@@ -188,6 +180,14 @@ Global
 		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|Any CPU.Build.0 = Release|Any CPU
 		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|x64.ActiveCfg = Release|x64
 		{711B7F32-196E-4C21-9DBD-AD59C4A7CF77}.Release|x64.Build.0 = Release|x64
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|x64.ActiveCfg = Debug|x64
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Debug|x64.Build.0 = Debug|x64
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|x64.ActiveCfg = Release|x64
+		{D5EB94D0-3ABA-4853-9050-E36B196E17D2}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
