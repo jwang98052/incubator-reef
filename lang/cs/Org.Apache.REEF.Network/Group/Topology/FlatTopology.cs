@@ -82,21 +82,73 @@ namespace Org.Apache.REEF.Network.Group.Topology
         /// <returns>The task configuration</returns>
         public IConfiguration GetTaskConfiguration(string taskId)
         {
+            //ICsConfigurationBuilder confBuilder;
+
+            //if (taskId.Equals(_rootId))
+            //{
+            //    //parent is null
+            //    confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
+            //        .BindImplementation(typeof(ICodec<T>), OperatorSpec.Codec.GetType())
+            //        .BindNamedParameter<MpiConfigurationOptions.TopologyRootTaskId, string>(
+            //            GenericType<MpiConfigurationOptions.TopologyRootTaskId>.Class,
+            //            null);
+            //    //all chidrean are its children
+            //    foreach (string tId in _nodes.Keys)
+            //    {
+            //        if (!tId.Equals(_rootId))
+            //        {
+            //            confBuilder.BindSetEntry<MpiConfigurationOptions.TopologyChildTaskIds, string>(
+            //                GenericType<MpiConfigurationOptions.TopologyChildTaskIds>.Class,
+            //                tId);
+            //        }
+            //    }
+            //}
+            //else
+            //{
+            //    //parent is root
+            //    confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
+            //        .BindImplementation(typeof(ICodec<T>), OperatorSpec.Codec.GetType())
+            //        .BindNamedParameter<MpiConfigurationOptions.TopologyRootTaskId, string>(
+            //            GenericType<MpiConfigurationOptions.TopologyRootTaskId>.Class,
+            //            _rootId);
+
+            //    //no children
+            //}
+
             var confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
                 .BindImplementation(typeof(ICodec<T>), OperatorSpec.Codec.GetType())
                 .BindNamedParameter<MpiConfigurationOptions.TopologyRootTaskId, string>(
                     GenericType<MpiConfigurationOptions.TopologyRootTaskId>.Class,
                     _rootId);
 
-            foreach (string tId in _nodes.Keys)
+            if (taskId.Equals(_rootId))
             {
-                if (!tId.Equals(_rootId))
+                foreach (string tId in _nodes.Keys)
                 {
-                    confBuilder.BindSetEntry<MpiConfigurationOptions.TopologyChildTaskIds, string>(
-                        GenericType<MpiConfigurationOptions.TopologyChildTaskIds>.Class,
-                        tId);
+                    if (!tId.Equals(_rootId))
+                    {
+                        confBuilder.BindSetEntry<MpiConfigurationOptions.TopologyChildTaskIds, string>(
+                            GenericType<MpiConfigurationOptions.TopologyChildTaskIds>.Class,
+                            tId);
+                    }
                 }
             }
+
+            //var confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
+            //    .BindImplementation(typeof(ICodec<T>), OperatorSpec.Codec.GetType())
+            //    .BindNamedParameter<MpiConfigurationOptions.TopologyRootTaskId, string>(
+            //        GenericType<MpiConfigurationOptions.TopologyRootTaskId>.Class,
+            //        _rootId);
+
+            //foreach (string tId in _nodes.Keys)
+            //{
+            //    if (!tId.Equals(_rootId))
+            //    {
+            //        confBuilder.BindSetEntry<MpiConfigurationOptions.TopologyChildTaskIds, string>(
+            //            GenericType<MpiConfigurationOptions.TopologyChildTaskIds>.Class,
+            //            tId);
+            //    }
+            //}
             
             if (OperatorSpec is BroadcastOperatorSpec<T>)
             {

@@ -68,6 +68,7 @@ namespace Org.Apache.REEF.Network.Group.Topology
 
         public IConfiguration GetTaskConfiguration(string taskId)
         {
+            //tall task parentsid and childreids
             var confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
                 .BindImplementation(typeof(ICodec<T>), OperatorSpec.Codec.GetType())
                 .BindNamedParameter<MpiConfigurationOptions.TopologyRootTaskId, string>(
