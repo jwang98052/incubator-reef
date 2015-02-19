@@ -29,12 +29,7 @@ using Org.Apache.REEF.Wake.Remote;
 
 namespace Org.Apache.REEF.Network.Group.Topology
 {
-    /// <summary>
-    /// Represents a graph of MPI Operators where there are only two levels of
-    /// nodes: the root and all children extending from the root.
-    /// </summary>
-    /// <typeparam name="T">The message type</typeparam>
-    public class FlatTopology<T> : ITopology<T>
+    public class TreeTypology<T> : ITopology<T>
     {
         private readonly string _groupName;
         private readonly string _operatorName;
@@ -44,21 +39,18 @@ namespace Org.Apache.REEF.Network.Group.Topology
 
         private readonly Dictionary<string, TaskNode> _nodes;
         private TaskNode _root;
+        private TaskNode _logicalRoot;
+        private TaskNode _prev;
 
-        /// <summary>
-        /// Creates a new FlatTopology.
-        /// </summary>
-        /// <param name="operatorName">The operator name</param>
-        /// <param name="groupName">The name of the topology's CommunicationGroup</param>
-        /// <param name="rootId">The root Task identifier</param>
-        /// <param name="driverId">The driver identifier</param>
-        /// <param name="operatorSpec">The operator specification</param>
-        public FlatTopology(
+        private int _fanOut;
+
+        public TreeTypology(
             string operatorName, 
             string groupName, 
             string rootId,
             string driverId,
-            IOperatorSpec<T> operatorSpec)
+            IOperatorSpec<T> operatorSpec,
+            int fanOut)
         {
             _groupName = groupName;
             _operatorName = operatorName;
@@ -66,20 +58,14 @@ namespace Org.Apache.REEF.Network.Group.Topology
             _driverId = driverId;
 
             OperatorSpec = operatorSpec;
+            _fanOut = fanOut;
 
             _nodes = new Dictionary<string, TaskNode>(); 
+
         }
 
-        /// <summary>
-        /// Gets the Operator specification
-        /// </summary>
         public IOperatorSpec<T> OperatorSpec { get; set; }
 
-        /// <summary>
-        /// Gets the task configuration for the operator topology.
-        /// </summary>
-        /// <param name="taskId">The task identifier</param>
-        /// <returns>The task configuration</returns>
         public IConfiguration GetTaskConfiguration(string taskId)
         {
             var confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
@@ -97,7 +83,7 @@ namespace Org.Apache.REEF.Network.Group.Topology
                         tId);
                 }
             }
-            
+
             if (OperatorSpec is BroadcastOperatorSpec<T>)
             {
                 BroadcastOperatorSpec<T> broadcastSpec = OperatorSpec as BroadcastOperatorSpec<T>;
@@ -114,7 +100,7 @@ namespace Org.Apache.REEF.Network.Group.Topology
             {
                 ReduceOperatorSpec<T> reduceSpec = OperatorSpec as ReduceOperatorSpec<T>;
                 confBuilder.BindImplementation(typeof(IReduceFunction<T>), reduceSpec.ReduceFunction.GetType());
-                
+
                 if (taskId.Equals(reduceSpec.ReceiverId))
                 {
                     confBuilder.BindImplementation(GenericType<IMpiOperator<T>>.Class, GenericType<ReduceReceiver<T>>.Class);
@@ -144,10 +130,6 @@ namespace Org.Apache.REEF.Network.Group.Topology
             return confBuilder.Build();
         }
 
-        /// <summary>
-        /// Adds a task to the topology graph.
-        /// </summary>
-        /// <param name="taskId">The identifier of the task to add</param>
         public void AddTask(string taskId)
         {
             if (string.IsNullOrEmpty(taskId))
@@ -169,28 +151,40 @@ namespace Org.Apache.REEF.Network.Group.Topology
             }
         }
 
-        private void SetRootNode(string rootId)
+        private void AddChild(string taskId)
         {
-            TaskNode rootNode = new TaskNode(_groupName, _operatorName, rootId, _driverId, true);
-            _root = rootNode;
-
-            foreach (TaskNode childNode in _nodes.Values)
+            TaskNode node = new TaskNode(_groupName, _operatorName, taskId, _driverId, false);
+            if (_logicalRoot != null)
             {
-                rootNode.AddChild(childNode);
-                childNode.SetParent(rootNode);
+                AddTaskNode(node);
             }
+            _nodes[taskId] = node;
         }
 
-        private void AddChild(string childId)
+        private void SetRootNode(string rootId) 
         {
-            TaskNode childNode = new TaskNode(_groupName, _operatorName, childId, _driverId, false);
-            _nodes[childId] = childNode;
+            TaskNode node = new TaskNode(_groupName, _operatorName, rootId, _driverId, true);
+            _root = node;
+            _logicalRoot = _root;
+            _prev = _root;
 
-            if (_root != null)
+            foreach (TaskNode n in _nodes.Values) 
             {
-                _root.AddChild(childNode);
-                childNode.SetParent(_root);
+                AddTaskNode(n);
+                _prev = n;
             }
+            _nodes[rootId] = _root;
         }
+
+        private void AddTaskNode(TaskNode node) 
+        {
+            if (_logicalRoot.GetNumberOfChildren() >= _fanOut) 
+            {
+                _logicalRoot = _logicalRoot.Successor();
+            }
+            node.SetParent(_logicalRoot);
+            _logicalRoot.AddChild(node);
+            _prev.SetSibling(node);
+       }
     }
 }
