@@ -53,7 +53,11 @@ namespace Org.Apache.REEF.Network.Group.Topology
             _children = new List<TaskNode>();
         }
 
-        public string TaskId { get; private set; }
+        public string TaskId
+        {
+            get { return _taskId; } 
+            private set { _taskId = value;  }
+        }
 
         public void SetSibling(TaskNode leaf) 
         {
@@ -82,6 +86,11 @@ namespace Org.Apache.REEF.Network.Group.Topology
 
         public int GetNumberOfChildren() {
             return _children.Count;
+        }
+
+        public IList<TaskNode> GetChildren()
+        {
+            return _children;
         } 
     }
 }

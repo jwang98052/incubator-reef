@@ -875,6 +875,23 @@ namespace Org.Apache.REEF.Tests.Network
         }
 
         [TestMethod]
+        public void TestTreeTypology()
+        {
+            TreeTypology<int> topology = new TreeTypology<int>("Operator", "Operator", "task1", "driverid",
+                new BroadcastOperatorSpec<int>("task1", new IntCodec()), 2);
+            for (int i = 1; i < 8; i++)
+            {
+                string taskid = "task" + i;
+                topology.AddTask(taskid);
+            }
+
+            for (int i = 1; i < 8; i++)
+            {
+                var conf = topology.GetTaskConfiguration("task" + i);
+            }
+        }
+
+        [TestMethod]
         public void TestConfigurationReduceSpec()
         {
             FlatTopology<int> topology = new FlatTopology<int>("Operator", "Group", "task1", "driverid",

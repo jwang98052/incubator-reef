@@ -68,21 +68,36 @@ namespace Org.Apache.REEF.Network.Group.Topology
 
         public IConfiguration GetTaskConfiguration(string taskId)
         {
-            //tall task parentsid and childreids
+            TaskNode selfTaskNode = GetTaskNode(taskId);
+            if (selfTaskNode == null)
+            {
+                throw new ArgumentException("Task has not been added to the topology");
+            }
+
+            string parentId;
+            TaskNode parent = selfTaskNode.GetParent();
+            if (parent == null)
+            {
+                parentId = selfTaskNode.TaskId;
+            }
+            else
+            {
+                parentId = parent.TaskId;
+            }
+
+            //add parentid, if no parent, add itself
             var confBuilder = TangFactory.GetTang().NewConfigurationBuilder()
                 .BindImplementation(typeof(ICodec<T>), OperatorSpec.Codec.GetType())
                 .BindNamedParameter<MpiConfigurationOptions.TopologyRootTaskId, string>(
                     GenericType<MpiConfigurationOptions.TopologyRootTaskId>.Class,
-                    _rootId);
+                    parentId);
 
-            foreach (string tId in _nodes.Keys)
+            //add all its children
+            foreach (TaskNode childNode in selfTaskNode.GetChildren())
             {
-                if (!tId.Equals(_rootId))
-                {
-                    confBuilder.BindSetEntry<MpiConfigurationOptions.TopologyChildTaskIds, string>(
-                        GenericType<MpiConfigurationOptions.TopologyChildTaskIds>.Class,
-                        tId);
-                }
+                confBuilder.BindSetEntry<MpiConfigurationOptions.TopologyChildTaskIds, string>(
+                    GenericType<MpiConfigurationOptions.TopologyChildTaskIds>.Class,
+                    childNode.TaskId);
             }
 
             if (OperatorSpec is BroadcastOperatorSpec<T>)
@@ -150,6 +165,14 @@ namespace Org.Apache.REEF.Network.Group.Topology
             {
                 AddChild(taskId);
             }
+            //_prev = GetTaskNode(taskId);
+        }
+
+        private TaskNode GetTaskNode(string taskId)
+        {
+            TaskNode n;
+            _nodes.TryGetValue(taskId, out n);
+            return n;
         }
 
         private void AddChild(string taskId)
@@ -172,7 +195,7 @@ namespace Org.Apache.REEF.Network.Group.Topology
             foreach (TaskNode n in _nodes.Values) 
             {
                 AddTaskNode(n);
-                _prev = n;
+                //_prev = n;
             }
             _nodes[rootId] = _root;
         }
@@ -186,6 +209,7 @@ namespace Org.Apache.REEF.Network.Group.Topology
             node.SetParent(_logicalRoot);
             _logicalRoot.AddChild(node);
             _prev.SetSibling(node);
-       }
+            _prev = node;
+        }
     }
 }

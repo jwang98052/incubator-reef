@@ -118,7 +118,6 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
             if (_selfId.Equals(rootId))
             {
                 _parent = null;
-
             }
             else
             {
