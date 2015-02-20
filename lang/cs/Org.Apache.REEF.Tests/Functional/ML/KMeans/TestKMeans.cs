@@ -66,7 +66,7 @@ namespace Org.Apache.REEF.Tests.Functional.ML.KMeans
         [Description("Test KMeans clustering with things directly run without reef")]
         [DeploymentItem(@".")]
         [DeploymentItem(@"Data", ".")]
-        [Ignore]
+        //[Ignore]
         [Timeout(180 * 1000)]
         public void TestKMeansOnDirectRunViaFileSystem()
         {
@@ -117,7 +117,7 @@ namespace Org.Apache.REEF.Tests.Functional.ML.KMeans
         [Description("Test KMeans clustering on reef local runtime with group communications")]
         [DeploymentItem(@".")]
         [DeploymentItem(@"Data", ".")]
-        [Ignore]
+        //[Ignore]
         [Timeout(180 * 1000)]
         public void TestKMeansOnLocalRuntimeWithGroupCommunications()
         {

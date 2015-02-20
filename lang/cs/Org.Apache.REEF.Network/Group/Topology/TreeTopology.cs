@@ -29,7 +29,7 @@ using Org.Apache.REEF.Wake.Remote;
 
 namespace Org.Apache.REEF.Network.Group.Topology
 {
-    public class TreeTypology<T> : ITopology<T>
+    public class TreeTopology<T> : ITopology<T>
     {
         private readonly string _groupName;
         private readonly string _operatorName;
@@ -44,7 +44,7 @@ namespace Org.Apache.REEF.Network.Group.Topology
 
         private int _fanOut;
 
-        public TreeTypology(
+        public TreeTopology(
             string operatorName, 
             string groupName, 
             string rootId,
