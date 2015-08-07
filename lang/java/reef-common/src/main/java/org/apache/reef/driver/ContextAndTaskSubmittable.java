@@ -44,6 +44,8 @@ public interface ContextAndTaskSubmittable {
    */
   void submitContextAndTask(final Configuration contextConfiguration, final Configuration taskConfiguration);
 
+  void submitContextAndTask(final Configuration contextConfiguration, final String taskConfiguration);
+
   /**
    * Submit a Context with Services and a Task.
    * <p/>
@@ -61,4 +63,7 @@ public interface ContextAndTaskSubmittable {
                                       final Configuration serviceConfiguration,
                                       final Configuration taskConfiguration);
 
+  void submitContextAndServiceAndTask(final Configuration contextConfiguration,
+                                      final Configuration serviceConfiguration,
+                                      final String taskConfiguration);
 }

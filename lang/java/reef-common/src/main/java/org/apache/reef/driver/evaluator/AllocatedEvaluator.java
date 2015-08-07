@@ -93,6 +93,9 @@ public interface AllocatedEvaluator
   void submitTask(final Configuration taskConfiguration);
 
   @Override
+  void submitTask(final String taskConfiguration);
+
+  @Override
   void submitContext(final Configuration contextConfiguration);
 
   @Override
@@ -104,7 +107,16 @@ public interface AllocatedEvaluator
                             final Configuration taskConfiguration);
 
   @Override
+  void submitContextAndTask(final Configuration contextConfiguration,
+                            final String taskConfiguration);
+
+  @Override
   void submitContextAndServiceAndTask(final Configuration contextConfiguration,
                                       final Configuration serviceConfiguration,
                                       final Configuration taskConfiguration);
+
+  @Override
+  void submitContextAndServiceAndTask(final Configuration contextConfiguration,
+                                      final Configuration serviceConfiguration,
+                                      final String taskConfiguration);
 }

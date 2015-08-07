@@ -55,6 +55,9 @@ public interface ActiveContext extends Identifiable, AutoCloseable, ContextBase,
   void submitTask(final Configuration taskConf);
 
   @Override
+  void submitTask(final String taskConf);
+
+  @Override
   void submitContext(final Configuration contextConfiguration);
 
   @Override

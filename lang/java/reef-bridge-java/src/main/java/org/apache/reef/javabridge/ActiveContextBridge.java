@@ -21,7 +21,6 @@ package org.apache.reef.javabridge;
 import org.apache.reef.driver.context.ActiveContext;
 import org.apache.reef.io.naming.Identifiable;
 import org.apache.reef.tang.ClassHierarchy;
-import org.apache.reef.tang.Configuration;
 import org.apache.reef.tang.formats.AvroConfigurationSerializer;
 
 import java.util.logging.Level;
@@ -51,15 +50,17 @@ public final class ActiveContextBridge extends NativeBridge implements Identifia
       throw new RuntimeException("empty taskConfigurationString provided.");
     }
 
-    final Configuration taskConfiguration;
-    try {
-      taskConfiguration = serializer.fromString(taskConfigurationString, clrClassHierarchy);
-    } catch (final Exception e) {
-      final String message = "Unable to de-serialize CLR  task configurations using class hierarchy.";
-      LOG.log(Level.SEVERE, message, e);
-      throw new RuntimeException(message, e);
-    }
-    jactiveContext.submitTask(taskConfiguration);
+    jactiveContext.submitTask(taskConfigurationString);
+
+//    final Configuration taskConfiguration;
+//    try {
+//      taskConfiguration = serializer.fromString(taskConfigurationString, clrClassHierarchy);
+//    } catch (final Exception e) {
+//      final String message = "Unable to de-serialize CLR  task configurations using class hierarchy.";
+//      LOG.log(Level.SEVERE, message, e);
+//      throw new RuntimeException(message, e);
+//    }
+//    jactiveContext.submitTask(taskConfiguration);
   }
 
   public String getEvaluatorDescriptorSring() {

@@ -164,6 +164,11 @@ final class MockActiveContext implements ActiveContext {
   }
 
   @Override
+   public void submitTask(final String taskConf) {
+    throw new NotImplementedException();
+  }
+
+  @Override
   public void submitTask(final Configuration taskConf) {
     throw new NotImplementedException();
   }

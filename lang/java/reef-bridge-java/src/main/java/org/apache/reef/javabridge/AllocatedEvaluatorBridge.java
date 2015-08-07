@@ -56,13 +56,13 @@ public class AllocatedEvaluatorBridge extends NativeBridge {
     final Configuration taskConfiguration;
     try {
       contextConfiguration = serializer.fromString(contextConfigurationString, clrClassHierarchy);
-      taskConfiguration = serializer.fromString(taskConfigurationString, clrClassHierarchy);
+      //taskConfiguration = serializer.fromString(taskConfigurationString, clrClassHierarchy);
     } catch (final Exception e) {
       final String message = "Unable to de-serialize CLR context or task configurations using class hierarchy.";
       LOG.log(Level.SEVERE, message, e);
       throw new RuntimeException(message, e);
     }
-    jallocatedEvaluator.submitContextAndTask(contextConfiguration, taskConfiguration);
+    jallocatedEvaluator.submitContextAndTask(contextConfiguration, taskConfigurationString);
   }
 
   public void submitContextString(final String contextConfigurationString) {
@@ -121,14 +121,15 @@ public class AllocatedEvaluatorBridge extends NativeBridge {
     try {
       contextConfiguration = serializer.fromString(contextConfigurationString, clrClassHierarchy);
       servicetConfiguration = serializer.fromString(serviceConfigurationString, clrClassHierarchy);
-      taskConfiguration = serializer.fromString(taskConfigurationString, clrClassHierarchy);
+      //taskConfiguration = serializer.fromString(taskConfigurationString, clrClassHierarchy);
     } catch (final Exception e) {
       final String message =
           "Unable to de-serialize CLR context or service or task configurations using class hierarchy.";
       LOG.log(Level.SEVERE, message, e);
       throw new RuntimeException(message, e);
     }
-    jallocatedEvaluator.submitContextAndServiceAndTask(contextConfiguration, servicetConfiguration, taskConfiguration);
+    jallocatedEvaluator
+        .submitContextAndServiceAndTask(contextConfiguration, servicetConfiguration, taskConfigurationString);
   }
 
   public String getEvaluatorDescriptorSring() {
