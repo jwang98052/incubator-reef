@@ -22,6 +22,8 @@ using System.Globalization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Org.Apache.REEF.Common.Runtime.Evaluator.Utils;
 using Org.Apache.REEF.Tang.Formats;
+using Org.Apache.REEF.Tang.Implementations.Tang;
+using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Utilities.Logging;
 
 namespace Org.Apache.REEF.Evaluator.Tests
@@ -46,9 +48,9 @@ namespace Org.Apache.REEF.Evaluator.Tests
             Logger.Log(Level.Info, "ApplicationId = " + aId);
             Logger.Log(Level.Info, "ErrorHandlerRID = " + rId);
 
-            Assert.IsTrue(eId.Equals("Node-1-1437686223482"));
+            Assert.IsTrue(eId.Equals("Node-1-1440108430564"));
             Assert.IsTrue(aId.Equals("REEF_LOCAL_RUNTIME"));
-            Assert.IsTrue(rId.Equals("socket://10.130.68.76:9267"));
+            Assert.IsTrue(rId.Equals("socket://10.130.68.76:9528"));
 
             var contextConfigString = evaluatorConfigurations.RootContextConfigurationString;
             var serviceConfigString = evaluatorConfigurations.RootServiceConfigurationString;
@@ -71,6 +73,24 @@ namespace Org.Apache.REEF.Evaluator.Tests
             {
                Logger.Log(Level.Info, "Key = " + b.key + " Value = " + b.value); 
             }
+        }
+
+        [TestMethod, Priority(0), TestCategory("Unit")]
+        [DeploymentItem(@"ConfigFiles")]
+        public void TestDeserializationWithAlias()
+        {
+            AvroConfigurationSerializer serializer = new AvroConfigurationSerializer();
+            var avroConfiguration = serializer.AvroDeseriaizeFromFile("evaluator.conf");
+            var language = avroConfiguration.language;
+
+            var classHierarchy = TangFactory.GetTang()
+                .GetClassHierarchy(new string[] { typeof(ApplicationIdentifier).Assembly.GetName().Name });
+            var config = serializer.FromAvro(avroConfiguration, classHierarchy);
+
+            IInjector i = TangFactory.GetTang().NewInjector(config);
+            string appid = i.GetNamedInstance<ApplicationIdentifier, string>();
+            string remoteId = i.GetNamedInstance<DriverRemoteIdentifier, string>();
+
         }
     }
 }

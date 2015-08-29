@@ -19,6 +19,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -41,6 +42,10 @@ namespace Org.Apache.REEF.Tang.Implementations.ClassHierarchy
         private object _nodeLock = new object();
         private object _mergeLock = new object();
         private object _implLock = new object();
+
+        //alias is indexed by language, for each language, a mapping between alias and corresponding name kept in a Dictionary
+        private IDictionary<string, IDictionary<string, string>> _aliasLookupTable = new Dictionary<string, IDictionary<string, string>>();
+ 
 
         public ParameterParser Parameterparser = new ParameterParser();
 
@@ -246,6 +251,26 @@ namespace Org.Apache.REEF.Tang.Implementations.ClassHierarchy
                 }
             }
 
+            if (np.GetAlias() != null && !np.GetAlias().Equals(""))
+            {
+                IDictionary<string, string> mapping = null;
+                _aliasLookupTable.TryGetValue(np.GetAliasLanguage(), out mapping);
+                if (mapping == null)
+                {
+                    mapping= new Dictionary<string, string>();
+                    _aliasLookupTable.Add(np.GetAliasLanguage(), mapping);
+                }
+                try
+                {
+                    mapping.Add(np.GetAlias(), np.GetFullName());
+                }
+                catch (Exception)
+                {
+                    var e = new ApplicationException(string.Format(CultureInfo.CurrentCulture, "Duplicated alias {0} on named parameter {1}.", np.GetAlias(), np.GetFullName()));
+                    Org.Apache.REEF.Utilities.Diagnostics.Exceptions.Throw(e, LOGGER);
+                }
+            }
+
             string shortName = np.GetShortName();
             if (shortName != null && !shortName.Equals(""))
             {
@@ -354,6 +379,44 @@ namespace Org.Apache.REEF.Tang.Implementations.ClassHierarchy
         public INode GetNode(string fullName)
         {
             Type t = loader.GetType(fullName);
+
+            if (t == null)
+            {
+                Org.Apache.REEF.Utilities.Diagnostics.Exceptions.Throw(new NameResolutionException(fullName, fullName), LOGGER);
+            }
+
+            return this.GetNode(t);
+        }
+
+        public INode GetNode(string fullName, string aliasLanguage)
+        {
+            Type t = null;
+            try
+            {
+                t = loader.GetType(fullName);
+            }
+            catch (ApplicationException e)
+            {
+                IDictionary<string, string> mapping = null;
+                _aliasLookupTable.TryGetValue(aliasLanguage, out mapping);
+                if (mapping != null)
+                {
+                    string assemblyName;
+                    mapping.TryGetValue(fullName, out assemblyName);
+                    if (assemblyName != null)
+                    {
+                        t = loader.GetType(assemblyName);
+                    }
+                    else
+                    {
+                        t = null;
+                    }
+                }
+                else
+                {
+                    t = null;
+                }
+            }
 
             if (t == null)
             {

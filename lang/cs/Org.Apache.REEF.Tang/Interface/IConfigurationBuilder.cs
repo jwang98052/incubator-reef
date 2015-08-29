@@ -28,6 +28,9 @@ namespace Org.Apache.REEF.Tang.Interface
         IClassHierarchy GetClassHierarchy();
         IConfiguration Build();
         void Bind(string iface, string impl);
+
+        void Bind(string iface, string impl, string language);
+
         void Bind(INode key, INode value);
 
         void BindConstructor(IClassNode k, IClassNode v); //v extended from ExternalConstructor

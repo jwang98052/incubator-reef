@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-﻿
+
+using Org.Apache.REEF.Tang.Annotations;
+
 namespace Org.Apache.REEF.Tang.Types
 {
     public interface INamedParameterNode : INode
@@ -34,5 +36,9 @@ namespace Org.Apache.REEF.Tang.Types
         bool IsSet();
 
         bool IsList();
+
+        string GetAlias();
+
+        string GetAliasLanguage();
     }
 }

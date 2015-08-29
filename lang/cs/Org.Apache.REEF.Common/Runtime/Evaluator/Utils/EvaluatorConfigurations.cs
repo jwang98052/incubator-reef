@@ -25,6 +25,7 @@ using Org.Apache.REEF.Common.Services;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Tang.Formats;
 using Org.Apache.REEF.Tang.Formats.AvroConfigurationDataContract;
+using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Utilities;
 using Org.Apache.REEF.Utilities.Logging;
 
@@ -65,6 +66,12 @@ namespace Org.Apache.REEF.Common.Runtime.Evaluator.Utils
                 _configFile = configFile;
                 AvroConfigurationSerializer serializer = new AvroConfigurationSerializer();
                 _avroConfiguration = serializer.AvroDeseriaizeFromFile(_configFile);
+                var language = _avroConfiguration.language;
+                LOGGER.Log(Level.Info, "The language that created the configFile is " + language);
+
+                var classHierarchy = TangFactory.GetTang()
+                    .GetClassHierarchy(new string[] { typeof(ApplicationIdentifier).Assembly.GetName().Name });
+                var c = serializer.FromAvro(_avroConfiguration, classHierarchy);
             }
         }
 

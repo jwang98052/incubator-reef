@@ -45,6 +45,7 @@ under the License.
     <Compile Include="GenericArgument.cs" />
     <Compile Include="GenericAsArgument.cs" />
     <Compile Include="NamedParameterConstructors.cs" />
+    <Compile Include="NamedParameterWithAlias.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ShortNameFooAB.cs" />
     <Compile Include="SimpleConstructors.cs" />

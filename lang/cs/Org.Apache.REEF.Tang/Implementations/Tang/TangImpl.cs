@@ -130,7 +130,7 @@ namespace Org.Apache.REEF.Tang.Implementations.Tang
 
         public ICsClassHierarchy GetDefaultClassHierarchy(string[] assemblies, Type[] parameterParsers)
         {
-            SetValuedKey key = new SetValuedKey(assemblies, parameterParsers);
+             SetValuedKey key = new SetValuedKey(assemblies, parameterParsers);
 
             ICsClassHierarchy ret = null;
             defaultClassHierarchy.TryGetValue(key, out ret);

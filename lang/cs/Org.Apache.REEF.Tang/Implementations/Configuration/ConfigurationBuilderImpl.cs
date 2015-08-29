@@ -222,6 +222,26 @@ namespace Org.Apache.REEF.Tang.Implementations.Configuration
             }
         }
 
+        public void Bind(string key, string value, string aliasLanguage)
+        {
+            INode n = ClassHierarchy.GetNode(key, aliasLanguage);
+
+            if (n is INamedParameterNode)
+            {
+                BindParameter((INamedParameterNode)n, value);
+            }
+            else if (n is IClassNode)
+            {
+                INode m = this.ClassHierarchy.GetNode(value);
+                Bind((IClassNode)n, (IClassNode)m);
+            }
+            else
+            {
+                var ex = new IllegalStateException(string.Format("getNode() returned {0} which is neither a ClassNode nor a NamedParameterNode", n));
+                Org.Apache.REEF.Utilities.Diagnostics.Exceptions.Throw(ex, LOGGER);
+            }
+        }
+
         public void Bind(Types.INode key, Types.INode value)
         {
             if (key is INamedParameterNode)

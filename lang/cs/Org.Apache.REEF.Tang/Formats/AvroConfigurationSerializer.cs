@@ -53,6 +53,9 @@ namespace Org.Apache.REEF.Tang.Formats
 
     public class AvroConfigurationSerializer : IConfigurationSerializer
     {
+        public const string Java = "Java";
+        public const string Cs = "Cs";
+
         private static readonly Logger LOGGER = Logger.GetLogger(typeof(AvroConfigurationResolver));
 
         [Inject]
@@ -151,6 +154,12 @@ namespace Org.Apache.REEF.Tang.Formats
         {
             AvroConfiguration avroConf = JsonConvert.DeserializeObject<AvroConfiguration>(josonString);
             return FromAvro(avroConf);
+        }
+
+        public IConfiguration FromString(string josonString, IClassHierarchy ch)
+        {
+            AvroConfiguration avroConf = JsonConvert.DeserializeObject<AvroConfiguration>(josonString);
+            return FromAvro(avroConf, ch);
         }
 
         public AvroConfiguration AvroDeseriaizeFromFile(string fileName)
@@ -252,7 +261,7 @@ namespace Org.Apache.REEF.Tang.Formats
                 l.Add(new ConfigurationEntry(e.Key.GetFullName(), val));
             }
 
-            return new AvroConfiguration(l);
+            return new AvroConfiguration(Cs, l);
         }
         
         private byte[] AvroSerialize(AvroConfiguration obj)
@@ -313,13 +322,15 @@ namespace Org.Apache.REEF.Tang.Formats
 
         private IConfiguration AddFromAvro(IConfigurationBuilder cb, AvroConfiguration avroConfiguration)
         {
+            string language = avroConfiguration.language;
+
             IList<KeyValuePair<string, string>> settings = new List<KeyValuePair<string, string>>();
 
             foreach (ConfigurationEntry e in avroConfiguration.Bindings)
             {
                 settings.Add(new KeyValuePair<string, string>(e.key, e.value));
             }
-            ConfigurationFile.ProcessConfigData(cb, settings);   //TODO
+            ConfigurationFile.ProcessConfigData(cb, settings, language);
             return cb.Build();
         }
     }

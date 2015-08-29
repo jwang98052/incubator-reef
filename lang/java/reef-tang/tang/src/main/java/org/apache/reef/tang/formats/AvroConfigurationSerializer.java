@@ -67,6 +67,10 @@ public final class AvroConfigurationSerializer implements ConfigurationSerialize
     // TODO[JIRA REEF-402]: This method should implement list deserialization. Implement it when C# side is ready.
     final Map<String, String> importedNames = new HashMap<>();
 
+    //TODO use the language in deserialize an AvroConfiguration for finding alias if any
+    final String language = avroConfiguration.getLanguage().toString();
+    System.out.println("****************************" + language);
+
     for (final ConfigurationEntry entry : avroConfiguration.getBindings()) {
 
       final String longName = importedNames.get(entry.getKey().toString());
@@ -187,7 +191,7 @@ public final class AvroConfigurationSerializer implements ConfigurationSerialize
     }
     
 
-    return AvroConfiguration.newBuilder().setBindings(configurationEntries).build();
+    return AvroConfiguration.newBuilder().setLanguage("Java").setBindings(configurationEntries).build();
   }
 
   @Override

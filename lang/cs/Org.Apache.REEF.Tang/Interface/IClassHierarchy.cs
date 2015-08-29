@@ -24,6 +24,9 @@ namespace Org.Apache.REEF.Tang.Interface
     public interface IClassHierarchy
     {
         INode GetNode(string fullName);
+
+        INode GetNode(string fullName, string aliasLanguage);
+              
         INode GetNamespace();
         bool IsImplementation(IClassNode inter, IClassNode impl);
         IClassHierarchy Merge(IClassHierarchy ch);
