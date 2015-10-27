@@ -18,12 +18,17 @@
  */
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Client.Common;
+using Org.Apache.REEF.Client.Yarn.RestClient;
 using Org.Apache.REEF.Client.YARN;
 using Org.Apache.REEF.Client.YARN.Parameters;
+using Org.Apache.REEF.Client.YARN.RestClient.DataModel;
+using Org.Apache.REEF.Common.Attributes;
 using Org.Apache.REEF.Common.Files;
 using Org.Apache.REEF.Tang.Annotations;
 using Org.Apache.REEF.Tang.Implementations.Tang;
@@ -44,14 +49,20 @@ namespace Org.Apache.REEF.Client.Yarn
         private readonly string _securityTokenKind;
         private readonly string _securityTokenService;
         private readonly string _jobSubmissionPrefix;
-        private String _driverUrl;
-        private REEFFileNames _fileNames;
+        private string _driverUrl;
+        private readonly REEFFileNames _fileNames;
+        private readonly YarnClient _yarnClient;
+        private Application _application;
+        private string _pointerFileName;
+        private string _applicationId;
+        private readonly HttpClientHelper _httpClientHelper;
 
         [Inject]
         internal YarnREEFClient(JavaClientLauncher javaClientLauncher,
             DriverFolderPreparationHelper driverFolderPreparationHelper,
             REEFFileNames fileNames,
             YarnCommandLineEnvironment yarn,
+            YarnClient yarnClient,
             [Parameter(typeof(SecurityTokenKindParameter))] string securityTokenKind,
             [Parameter(typeof(SecurityTokenServiceParameter))] string securityTokenService,
             [Parameter(typeof(JobSubmissionDirectoryPrefixParameter))] string jobSubmissionPrefix)
@@ -63,6 +74,8 @@ namespace Org.Apache.REEF.Client.Yarn
             _javaClientLauncher.AddToClassPath(yarn.GetYarnClasspathList());
             _driverFolderPreparationHelper = driverFolderPreparationHelper;
             _fileNames = fileNames;
+            _yarnClient = yarnClient;
+            _httpClientHelper = new HttpClientHelper();
         }
 
         public void Submit(IJobSubmission jobSubmission)
@@ -82,12 +95,32 @@ namespace Org.Apache.REEF.Client.Yarn
 
             Launch(jobSubmission, driverFolderPath);
 
-            var pointerFileName = Path.Combine(driverFolderPath, _fileNames.DriverHttpEndpoint);
+            _pointerFileName = Path.Combine(driverFolderPath, _fileNames.DriverHttpEndpoint);
+            _driverUrl = _httpClientHelper.GetDriverUrlForYarn(_pointerFileName);
 
-            var httpClient = new HttpClientHelper();
-            _driverUrl = httpClient.GetDriverUrlForYarn(pointerFileName);
+            return _httpClientHelper;
+        }
 
-            return httpClient;
+        /// <summary>
+        /// Pull Job status from Yarn
+        /// </summary>
+        /// <returns></returns>
+        public async Task<ApplicationState> GetJobStatus()
+        {
+            _applicationId = _httpClientHelper.GetAppId(_pointerFileName);
+            _application = await _yarnClient.GetApplicationAsync(_applicationId);
+
+            Logger.Log(Level.Info, string.Format("_application status {0}, Progress: {1}, trackingUri: {2}, Name: {3}.  ", 
+                _application.FinalStatus, _application.Progress, _application.TrackingUI, _application.Name));
+
+            ApplicationState finalState;
+            if (Enum.TryParse(_application.FinalStatus, true, out finalState))
+            {
+                return finalState;  
+            }
+
+            throw new ApplicationException(string.Format(CultureInfo.CurrentCulture, 
+                "The state {0} returned cannot be parsed. Check if the status returned from yarn match enum defination", _application.FinalStatus));
         }
 
         private void Launch(IJobSubmission jobSubmission, string driverFolderPath)

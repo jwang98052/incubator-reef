@@ -18,11 +18,15 @@
  */
 
 using System;
+using System.IO;
+using System.Threading;
 using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Client.Local;
 using Org.Apache.REEF.Client.Yarn;
+using Org.Apache.REEF.Client.YARN.Parameters;
 using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.Tang.Annotations;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
 using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Tang.Util;
@@ -63,7 +67,25 @@ namespace Org.Apache.REEF.Examples.HelloREEF
                 .SetJobIdentifier("HelloREEF")
                 .Build();
 
-            _reefClient.SubmitAndGetDriverUrl(helloJobSubmission);
+            var driverHttpEndpoint = _reefClient.SubmitAndGetDriverUrl(helloJobSubmission);
+
+            driverHttpEndpoint.AppStatus = GetJobStatus();
+        }
+
+        private ApplicationState GetJobStatus()
+        {
+            var status = _reefClient.GetJobStatus();
+            ApplicationState result = status.Result;
+
+            while (result.Equals(ApplicationState.UNDEFINED))
+            {
+                Thread.Sleep(2000);
+                status = _reefClient.GetJobStatus();
+                result = status.Result;
+            }
+
+            Console.WriteLine("Application status : " + result.ToString());
+            return result;
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Org.Apache.REEF.Client.YARN.Parameters;
 using Org.Apache.REEF.Tang.Annotations;
 using Org.Apache.REEF.Utilities.Logging;
 
@@ -39,23 +40,31 @@ namespace Org.Apache.REEF.Client.Yarn.RestClient
 
         private static readonly string HadoopConfDirEnvVariable = "HADOOP_CONF_DIR";
         private static readonly string YarnConfigFileName = "yarn-site.xml";
-        private static readonly string YarnRmWebappHttpsAddressPropertyName = "yarn.resourcemanager.webapp.https.address";
-        private static readonly string YarnRmWebappHttpAddressPropertyName = "yarn.resourcemanager.webapp.address";
         private static readonly Logger Logger = Logger.GetLogger(typeof(YarnConfigurationUrlProvider));
         private Uri _yarnRmUri;
 
+        private readonly string _yarnRmWebappHttpsAddressPropertyName;
+        private readonly string _yarnRmWebappHttpAddressPropertyName;
+
         [Inject]
         private YarnConfigurationUrlProvider(
-            [Parameter(typeof(UseHttpsForYarnCommunication))] bool useHttps)
-            : this(null, useHttps)
+            [Parameter(typeof(UseHttpsForYarnCommunication))] bool useHttps,
+            [Parameter(typeof(YarnRmWebappHttpsAddressPropertyName))] string yarnRmWebappHttpsAddressPropertyName,
+            [Parameter(typeof(YarnRmWebappHttpAddressPropertyName))] string yarnRmWebappHttpAddressPropertyName)
+            : this(null, useHttps, yarnRmWebappHttpsAddressPropertyName, yarnRmWebappHttpAddressPropertyName)
         {
         }
 
         [Inject]
         private YarnConfigurationUrlProvider(
             [Parameter(typeof(HadoopConfigurationDirectory))] string hadoopConfigDir,
-            [Parameter(typeof(UseHttpsForYarnCommunication))] bool useHttps)
+            [Parameter(typeof(UseHttpsForYarnCommunication))] bool useHttps,
+            [Parameter(typeof(YarnRmWebappHttpsAddressPropertyName))] string yarnRmWebappHttpsAddressPropertyName,
+            [Parameter(typeof(YarnRmWebappHttpAddressPropertyName))] string yarnRmWebappHttpAddressPropertyName)
         {
+            _yarnRmWebappHttpsAddressPropertyName = yarnRmWebappHttpsAddressPropertyName;
+            _yarnRmWebappHttpAddressPropertyName = yarnRmWebappHttpAddressPropertyName;
+
             hadoopConfigDir = hadoopConfigDir ?? Environment.GetEnvironmentVariable(HadoopConfDirEnvVariable);
 
             if (string.IsNullOrEmpty(hadoopConfigDir) || !Directory.Exists(hadoopConfigDir))
@@ -79,8 +88,8 @@ namespace Org.Apache.REEF.Client.Yarn.RestClient
             var configRoot = XElement.Load(yarnConfigurationFile);
 
             string propertyName = useHttps
-                ? YarnRmWebappHttpsAddressPropertyName
-                : YarnRmWebappHttpAddressPropertyName;
+                ? _yarnRmWebappHttpsAddressPropertyName
+                : _yarnRmWebappHttpAddressPropertyName;
 
             string prefix = useHttps ? "https" : "http";
 

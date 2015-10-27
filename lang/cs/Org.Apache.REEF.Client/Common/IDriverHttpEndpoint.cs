@@ -17,6 +17,7 @@
  * under the License.
  */
 
+using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Common.Attributes;
 
 namespace Org.Apache.REEF.Client.Common
@@ -24,8 +25,28 @@ namespace Org.Apache.REEF.Client.Common
     [Unstable("0.13", "Working in progress for what to return after submit")]
     public interface IDriverHttpEndpoint
     {
+        /// <summary>
+        /// Get Uri result
+        /// </summary>
+        /// <param name="url"></param>
+        /// <returns></returns>
         string GetUrlResult(string url);
 
+        /// <summary>
+        /// Get Driver Uri
+        /// </summary>
         string DriverUrl { get; }
+
+        /// <summary>
+        /// Get application id for submitted job
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        string GetAppId(string filePath);
+
+        /// <summary>
+        /// Allow to set and get Application state
+        /// </summary>
+        ApplicationState AppStatus { get; set; }
     }
 }

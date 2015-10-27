@@ -24,6 +24,8 @@ using System.Threading.Tasks;
 using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Client.Common;
 using Org.Apache.REEF.Client.Local.Parameters;
+using Org.Apache.REEF.Client.YARN.RestClient.DataModel;
+using Org.Apache.REEF.Common.Attributes;
 using Org.Apache.REEF.Common.Files;
 using Org.Apache.REEF.Tang.Annotations;
 using Org.Apache.REEF.Tang.Implementations.Tang;
@@ -53,6 +55,7 @@ namespace Org.Apache.REEF.Client.Local
         private readonly string _runtimeFolder;
         private string _driverUrl;
         private REEFFileNames _fileNames;
+        private ApplicationState _jobStatus;
 
         [Inject]
         private LocalClient(DriverFolderPreparationHelper driverFolderPreparationHelper,
@@ -66,6 +69,7 @@ namespace Org.Apache.REEF.Client.Local
             _numberOfEvaluators = numberOfEvaluators;
             _javaClientLauncher = javaClientLauncher;
             _fileNames = fileNames;
+            _jobStatus = ApplicationState.NEW;
         }
 
         /// <summary>
@@ -106,6 +110,7 @@ namespace Org.Apache.REEF.Client.Local
                 javaParams.TcpPortRangeCount.ToString(),
                 javaParams.TcpPortRangeTryCount.ToString()
                 );
+            _jobStatus = ApplicationState.SUBMITTED;
             Logger.Log(Level.Info, "Submitted the Driver for execution.");
         }
 
@@ -135,8 +140,20 @@ namespace Org.Apache.REEF.Client.Local
             HttpClientHelper helper = new HttpClientHelper();
             _driverUrl = helper.GetDriverUrlForLocalRuntime(fileName);
 
+            _jobStatus = ApplicationState.SUBMITTED;
             Logger.Log(Level.Info, "Submitted the Driver for execution. Returned driverUrl is: " + _driverUrl);
             return helper;
+        }
+
+        /// <summary>
+        /// Return current Job status
+        /// </summary>
+        /// <returns></returns>
+        [Unstable("0.14", "Working in progress for rest API status returned")]
+        public async Task<ApplicationState> GetJobStatus()
+        {
+            await Task.Delay(1000); //1 seconds delay
+            return _jobStatus;
         }
 
         public string DriverUrl

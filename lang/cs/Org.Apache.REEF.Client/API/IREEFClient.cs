@@ -18,6 +18,7 @@
  */
 
 using System;
+using System.Threading.Tasks;
 using Org.Apache.REEF.Client.Common;
 using Org.Apache.REEF.Common.Attributes;
 
@@ -43,5 +44,12 @@ namespace Org.Apache.REEF.Client.API
         /// <returns>IDriverHttpEndpoint</returns>
         [Unstable("0.13", "Working in progress for what to return after submit")]
         IDriverHttpEndpoint SubmitAndGetDriverUrl(IJobSubmission jobSubmission);
+
+        /// <summary>
+        /// Returns the Application status in running the job
+        /// </summary>
+        /// <returns></returns>
+        [Unstable("0.14", "Working in progress for rest API status returned")]
+        Task<ApplicationState> GetJobStatus();
     }
 }

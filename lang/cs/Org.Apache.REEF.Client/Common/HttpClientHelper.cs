@@ -27,6 +27,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.Apache.REEF.Client.API;
 
 namespace Org.Apache.REEF.Client.Common
 {
@@ -90,7 +91,12 @@ namespace Org.Apache.REEF.Client.Common
             }
         }
 
-        internal static string GetAppId(string filePath)
+        /// <summary>
+        /// Return teh applicaiton id of the Job
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        public string GetAppId(string filePath)
         {
             using (var sr = new StreamReader(File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
@@ -98,6 +104,11 @@ namespace Org.Apache.REEF.Client.Common
                 return appId;
             }
         }
+
+        /// <summary>
+        /// Get and set application state
+        /// </summary>
+        public ApplicationState AppStatus { get; set; }
 
         internal static string GetTrackingUrl(string filePath)
         {
@@ -120,7 +131,7 @@ namespace Org.Apache.REEF.Client.Common
             return result.Item2;
         }
 
-        internal string GetDriverUrlForYarn(String filePath)
+        internal string GetDriverUrlForYarn(string filePath)
         {
             _driverUrl = GetTrackingUrl(filePath);
             return _driverUrl;
