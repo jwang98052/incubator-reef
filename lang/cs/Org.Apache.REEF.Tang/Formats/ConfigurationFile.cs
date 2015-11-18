@@ -223,7 +223,7 @@ namespace Org.Apache.REEF.Tang.Formats
             return property;
         }
 
-        public static void ProcessConfigData(IConfigurationBuilder conf, IList<KeyValuePair<string, string>> settings, string language)
+        internal static void ProcessConfigData(IConfigurationBuilder conf, IList<KeyValuePair<string, string>> settings, string language)
         {
             foreach (KeyValuePair<string, string> kv in settings)
             {
