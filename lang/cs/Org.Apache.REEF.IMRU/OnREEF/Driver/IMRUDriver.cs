@@ -20,6 +20,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net.Configuration;
 using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Driver;
@@ -27,6 +28,7 @@ using Org.Apache.REEF.Driver.Context;
 using Org.Apache.REEF.Driver.Evaluator;
 using Org.Apache.REEF.Driver.Task;
 using Org.Apache.REEF.IMRU.API;
+using Org.Apache.REEF.IMRU.OnREEF.Driver.StateMachine;
 using Org.Apache.REEF.IMRU.OnREEF.IMRUTasks;
 using Org.Apache.REEF.IMRU.OnREEF.MapInputWithControlMessage;
 using Org.Apache.REEF.IMRU.OnREEF.Parameters;
@@ -88,6 +90,14 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         private int _numberOfReadyTasks = 0;
         private readonly object _lock = new object();
 
+        //// fault tolerant
+        private SystemStateMachine _systemState;
+        private int _numberofAppErrors = 0;
+        private readonly ISet<IFailedEvaluator> _failedEvaluators = new HashSet<IFailedEvaluator>();
+        private bool _recoveryMode = false;
+        private readonly int _maxRetryNumberForFaultTolerant;
+        private int _numberOfRetryForFaultTolerant = 0;
+
         private readonly ServiceAndContextConfigurationProvider<TMapInput, TMapOutput, TPartitionType>
             _serviceAndContextConfigurationProvider;
 
@@ -101,6 +111,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             [Parameter(typeof(MemoryPerMapper))] int memoryPerMapper,
             [Parameter(typeof(MemoryForUpdateTask))] int memoryForUpdateTask,
             [Parameter(typeof(AllowedFailedEvaluatorsFraction))] double failedEvaluatorsFraction,
+            [Parameter(typeof(MaxRetryNumberInRecovery))] int maxRetryNumberInRecovery,
             [Parameter(typeof(InvokeGC))] bool invokeGC,
             IGroupCommDriver groupCommDriver)
         {
@@ -113,6 +124,9 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             _memoryForUpdateTask = memoryForUpdateTask;
             _perMapperConfigs = perMapperConfigs;
             _totalMappers = dataSet.Count;
+
+            ////fault tolerant
+            _maxRetryNumberForFaultTolerant = maxRetryNumberInRecovery;
 
             _allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
             _invokeGC = invokeGC;
@@ -136,8 +150,9 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="value">Event fired when driver started</param>
         public void OnNext(IDriverStarted value)
         {
-            RequestUpdateEvaluator();
-            RequestMapEvaluators(_totalMappers);
+            StartAction();
+            ////RequestUpdateEvaluator();
+            ////RequestMapEvaluators(_totalMappers);
             //// TODO[REEF-598]: Set a timeout for this request to be satisfied. If it is not within that time, exit the Driver.
         }
 
@@ -261,6 +276,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
             _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(value.Id);
             RemovedFailedContext(value);
+            AddFailedEvaluator(value);
 
             bool isMaster = _serviceAndContextConfigurationProvider.IsMasterEvaluatorId(value.Id);
 
@@ -313,6 +329,14 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                         value.FailedContexts.Count);
                     Exceptions.Throw(new IMRUSystemException(msg), Logger);
                 }
+            }
+        }
+
+        private void AddFailedEvaluator(IFailedEvaluator value)
+        {
+            lock (_lock)
+            {
+                _failedEvaluators.Add(value);
             }
         }
 
@@ -585,6 +609,61 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     .SetMegabytes(_memoryForUpdateTask)
                     .SetNumber(1)
                     .Build());
+        }
+
+        private void StartAction()
+        {
+            lock (_lock)
+            {
+                _numberofAppErrors = 0;
+
+                bool requestMaster = !_recoveryMode || IsMasterFailed();
+                int mappersToRequest = _recoveryMode ? NumberofFailedMappers() : _totalMappers;
+
+                _failedEvaluators.Clear();
+
+                if (_systemState == null)
+                {
+                    _systemState = new SystemStateMachine();
+                }
+                else
+                {
+                    _numberOfRetryForFaultTolerant++;
+                    _systemState.MoveNext(SystemStateEvent.Recover);
+                }
+
+                if (requestMaster)
+                {
+                    Logger.Log(Level.Info, "Requesting a master Evaluator.");
+                    RequestUpdateEvaluator();
+                }
+                if (mappersToRequest > 0)
+                {
+                    Logger.Log(Level.Info, string.Format("Requesting {0} map Evaluators.", mappersToRequest));
+                    RequestMapEvaluators(mappersToRequest);
+                }
+            }
+        }
+
+        private bool IsMasterFailed()
+        {
+            return _failedEvaluators.Any(e => _serviceAndContextConfigurationProvider.IsMasterEvaluatorId(e.Id));
+        }
+
+        private int NumberofFailedMappers()
+        {
+            if (IsMasterFailed())
+            {
+                return _failedEvaluators.Count - 1;
+            }
+            return _failedEvaluators.Count;
+        }
+
+        private bool Recoverable()
+        {
+            return _failedEvaluators.Count < _allowedFailedEvaluators 
+                && _numberofAppErrors == 0 
+                && _numberOfRetryForFaultTolerant < _maxRetryNumberForFaultTolerant;
         }
     }
 }
