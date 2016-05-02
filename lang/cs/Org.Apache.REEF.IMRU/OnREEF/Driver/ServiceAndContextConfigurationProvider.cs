@@ -33,7 +33,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
     /// and Context configuration
     /// </summary>
     /// <typeparam name="TMapInput"></typeparam>
-    /// <typeparam name="TMapOutput"></typeparam>
+    /// <typeparam name="TMapOutput"></typeparam>_submittedEvaluators
     /// <typeparam name="TPartitionType"></typeparam>
     internal sealed class ServiceAndContextConfigurationProvider<TMapInput, TMapOutput, TPartitionType>
     {
@@ -163,6 +163,44 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             }
         }
 
+        internal ContextAndServiceConfiguration GetContextConfigurationForMasterEvaluatorById(string evaluatorId)
+        {
+            if (_submittedEvaluators.Contains(evaluatorId))
+            {
+                string msg = string.Format("The context is already submitted to evaluator:{0}", evaluatorId);
+                Exceptions.Throw(new Exception(msg), Logger);
+            }
+
+            if (_masterEvaluatorId != null)
+            {
+                string msg = string.Format("The is already master evaluator {0}", _masterEvaluatorId);
+                Exceptions.Throw(new Exception(msg), Logger);
+            }
+
+                Logger.Log(Level.Info, "Getting root context and service configuration for master");
+                _masterEvaluatorId = evaluatorId;
+                _submittedEvaluators.Add(evaluatorId);
+                return new ContextAndServiceConfiguration(
+                    ContextConfiguration.ConfigurationModule.Set(ContextConfiguration.Identifier,
+                        IMRUConstants.MasterContextId).Build(),
+                    TangFactory.GetTang().NewConfigurationBuilder().Build());
+        }
+
+        internal ContextAndServiceConfiguration GetContextConfigurationForMapperEvaluatorById(string evaluatorId)
+        {
+            lock (_lock)
+            {
+                if (_submittedEvaluators.Contains(evaluatorId))
+                {
+                    string msg = string.Format("The context is already submitted to evaluator:{0}", evaluatorId);
+                    Exceptions.Throw(new Exception(msg), Logger);
+                }
+
+                Logger.Log(Level.Info, "Submitting root context and service for a map task");
+                return GetDataLoadingConfigurationForEvaluatorById(evaluatorId);
+            }
+        }
+
         /// <summary>
         /// Checks whether evaluator id is that of master
         /// </summary>
@@ -211,7 +249,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// </summary>
         /// <param name="evaluatorId"></param>
         /// <returns></returns>
-        private ContextAndServiceConfiguration GetDataLoadingConfigurationForEvaluatorById(string evaluatorId)
+        internal ContextAndServiceConfiguration GetDataLoadingConfigurationForEvaluatorById(string evaluatorId)
         {
             string msg;
            

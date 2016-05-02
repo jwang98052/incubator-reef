@@ -72,20 +72,21 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
         private readonly ConfigurationManager _configurationManager;
         private readonly int _totalMappers;
-        private readonly IEvaluatorRequestor _evaluatorRequestor;
+        ////private readonly IEvaluatorRequestor _evaluatorRequestor;
         private ICommunicationGroupDriver _commGroup;
         private readonly IGroupCommDriver _groupCommDriver;
         private TaskStarter _groupCommTaskStarter;
         private readonly ConcurrentStack<IConfiguration> _perMapperConfiguration;
-        private readonly int _coresPerMapper;
-        private readonly int _coresForUpdateTask;
-        private readonly int _memoryPerMapper;
-        private readonly int _memoryForUpdateTask;
+        ////private readonly int _coresPerMapper;
+        ////private readonly int _coresForUpdateTask;
+        ////private readonly int _memoryPerMapper;
+        ////private readonly int _memoryForUpdateTask;
         private readonly ISet<IPerMapperConfigGenerator> _perMapperConfigs;
         private readonly ISet<ICompletedTask> _completedTasks = new HashSet<ICompletedTask>();
-        private readonly IDictionary<string, IActiveContext> _activeContexts = new Dictionary<string, IActiveContext>();
-        private readonly int _allowedFailedEvaluators;
-        private int _currentFailedEvaluators = 0;
+        private readonly ActiveContextManager _contextManager;
+        private readonly EvaluatorManager _evaluatorManager;
+        ////private readonly int _allowedFailedEvaluators;
+        //// private int _currentFailedEvaluators = 0;
         private readonly bool _invokeGC;
         private int _numberOfReadyTasks = 0;
         private readonly object _lock = new object();
@@ -93,7 +94,8 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         //// fault tolerant
         private SystemStateMachine _systemState;
         private int _numberofAppErrors = 0;
-        private readonly ISet<IFailedEvaluator> _failedEvaluators = new HashSet<IFailedEvaluator>();
+        ////private readonly ISet<IFailedEvaluator> _failedEvaluators = new HashSet<IFailedEvaluator>();
+        ////private readonly ISet<IAllocatedEvaluator> _allocatedEvaluators = new HashSet<IAllocatedEvaluator>();
         private bool _recoveryMode = false;
         private readonly int _maxRetryNumberForFaultTolerant;
         private int _numberOfRetryForFaultTolerant = 0;
@@ -116,19 +118,26 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             IGroupCommDriver groupCommDriver)
         {
             _configurationManager = configurationManager;
-            _evaluatorRequestor = evaluatorRequestor;
+            ////_evaluatorRequestor = evaluatorRequestor;
             _groupCommDriver = groupCommDriver;
-            _coresPerMapper = coresPerMapper;
-            _coresForUpdateTask = coresForUpdateTask;
-            _memoryPerMapper = memoryPerMapper;
-            _memoryForUpdateTask = memoryForUpdateTask;
+            ////_coresPerMapper = coresPerMapper;
+            ////_coresForUpdateTask = coresForUpdateTask;
+            ////_memoryPerMapper = memoryPerMapper;
+            ////_memoryForUpdateTask = memoryForUpdateTask;
             _perMapperConfigs = perMapperConfigs;
             _totalMappers = dataSet.Count;
+
+            var allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
+
+            _contextManager = new ActiveContextManager(_totalMappers + 1);
+            EvaluatorSpecification updateSpec = new EvaluatorSpecification(memoryForUpdateTask, coresForUpdateTask);
+            EvaluatorSpecification mapperSpec = new EvaluatorSpecification(memoryPerMapper, coresPerMapper);
+
+            _evaluatorManager = new EvaluatorManager(_totalMappers + 1, allowedFailedEvaluators, evaluatorRequestor, updateSpec, mapperSpec);
 
             ////fault tolerant
             _maxRetryNumberForFaultTolerant = maxRetryNumberInRecovery;
 
-            _allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
             _invokeGC = invokeGC;
 
             _perMapperConfiguration = ConstructPerMapperConfigStack(_totalMappers);
@@ -137,10 +146,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
             var msg =
                 string.Format("map task memory:{0}, update task memory:{1}, map task cores:{2}, update task cores:{3}",
-                    _memoryPerMapper,
-                    _memoryForUpdateTask,
-                    _coresPerMapper,
-                    _coresForUpdateTask);
+                    memoryPerMapper,
+                    memoryForUpdateTask,
+                    coresPerMapper,
+                    coresForUpdateTask);
             Logger.Log(Level.Info, msg);
         }
 
@@ -163,9 +172,26 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="allocatedEvaluator">The allocated evaluator</param>
         public void OnNext(IAllocatedEvaluator allocatedEvaluator)
         {
-            var configs =
-                _serviceAndContextConfigurationProvider.GetContextConfigurationForEvaluatorById(allocatedEvaluator.Id);
-            allocatedEvaluator.SubmitContextAndService(configs.Context, configs.Service);
+            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "$$$$$$$$$$$$$$$$$$$$$$$AllocatedEvaluator EvaluatorBatchId [{0}], memory [{1}]", allocatedEvaluator.EvaluatorBatchId, allocatedEvaluator.GetEvaluatorDescriptor().Memory));
+            lock (_lock)
+            {
+                _evaluatorManager.AddAllocatedEvaluator(allocatedEvaluator);
+
+                ContextAndServiceConfiguration configs;
+                if (_evaluatorManager.IsMasterEvaluator(allocatedEvaluator))
+                {
+                    _evaluatorManager.SetMasterEvaluatorId(allocatedEvaluator.Id);
+                   configs =
+                        _serviceAndContextConfigurationProvider.GetContextConfigurationForMasterEvaluatorById(
+                            allocatedEvaluator.Id);
+                }
+                else
+                {
+                    configs = _serviceAndContextConfigurationProvider.GetDataLoadingConfigurationForEvaluatorById(
+                            allocatedEvaluator.Id);
+                }
+                allocatedEvaluator.SubmitContextAndService(configs.Context, configs.Service);
+            }
         }
 
         /// <summary>
@@ -175,17 +201,11 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         public void OnNext(IActiveContext activeContext)
         {
             Logger.Log(Level.Verbose, string.Format(CultureInfo.InvariantCulture, "Received Active Context {0}", activeContext.Id));
-
             lock (_lock)
             {
-                if (_activeContexts.ContainsKey(activeContext.Id))
-                {
-                    var msg = string.Format(CultureInfo.InvariantCulture, "The context [{0}] received is already exists.", activeContext.Id);
-                    Exceptions.Throw(new ApplicationException(msg), Logger);
-                }
-                _activeContexts.Add(activeContext.Id, activeContext);
+                _contextManager.Add(activeContext);
 
-                if (_activeContexts.Count == _totalMappers + 1)
+                if (_contextManager.NumberOfActiveContexts == _totalMappers + 1)
                 {
                     SubmitTasks();
                 }
@@ -203,7 +223,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 AddGroupCommunicationOperators();
                 _groupCommTaskStarter = new TaskStarter(_groupCommDriver, _totalMappers + 1);
 
-                foreach (var activeContext in _activeContexts.Values)
+                foreach (var activeContext in _contextManager.ActiveContexts)
                 {
                     if (_serviceAndContextConfigurationProvider.IsMasterEvaluatorId(activeContext.EvaluatorId))
                     {
@@ -216,6 +236,8 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                         Logger.Log(Level.Verbose, "Submitting map task");
                         _serviceAndContextConfigurationProvider.RecordActiveContextPerEvaluatorId(
                             activeContext.EvaluatorId);
+                        ////_evaluatorManager.AddContextLoadedEvalutor(activeContext.EvaluatorId);  ////replace previouse line
+                        //// add validation in GetTaskIdByEvaluatorId
                         string taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
                         _commGroup.AddTask(taskId);
                         _groupCommTaskStarter.QueueTask(GetMapTaskConfiguration(activeContext, taskId), activeContext);
@@ -267,16 +289,22 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
             Logger.Log(Level.Info,
                 string.Format("Evaluator with Id: {0} failed with Exception: {1}", value.Id, value.EvaluatorException));
-            int currFailedEvaluators = Interlocked.Increment(ref _currentFailedEvaluators);
-            if (currFailedEvaluators > _allowedFailedEvaluators)
+
+            ////int currFailedEvaluators = Interlocked.Increment(ref _currentFailedEvaluators);
+            ////if (currFailedEvaluators > _allowedFailedEvaluators)
+            ////{
+            ////    Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_allowedFailedEvaluators),
+            ////        Logger);
+            ////}
+
+            if (_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures)
             {
-                Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_allowedFailedEvaluators),
-                    Logger);
+                Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_evaluatorManager.AllowedNumberOfEvaluatorFailures), Logger);
             }
 
             _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(value.Id);
-            RemovedFailedContext(value);
-            AddFailedEvaluator(value);
+            _contextManager.RemoveFailedContextInFailedEvaluator(value);
+            _evaluatorManager.RecordFailedEvaluator(value);
 
             bool isMaster = _serviceAndContextConfigurationProvider.IsMasterEvaluatorId(value.Id);
 
@@ -285,58 +313,12 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             if (!isMaster)
             {
                 Logger.Log(Level.Info, string.Format("Requesting a replacement map Evaluator for {0}", value.Id));
-                RequestMapEvaluators(1);
+                _evaluatorManager.RequestMapEvaluators(1);
             }
             else
             {
                 Logger.Log(Level.Info, string.Format("Requesting a replacement master Evaluator for {0}", value.Id));
-                RequestUpdateEvaluator();
-            }
-        }
-
-        /// <summary>
-        /// This is to remove failed context from _activeContexts
-        /// More details will be implemented when working on REEF-1251
-        /// </summary>
-        /// <param name="value"></param>
-        private void RemovedFailedContext(IFailedEvaluator value)
-        {
-            //// The lock might be move to IFailedEvaluator handler when working on REEF-1251
-            lock (_lock)
-            {
-                if (value.FailedContexts == null)
-                {
-                    Exceptions.Throw(new SystemException("There is no context attached with failed evaluator."), Logger);
-                }
-                else if (value.FailedContexts.Count == 1)
-                {
-                    var failedContextId = value.FailedContexts[0].Id;
-                    if (!_activeContexts.ContainsKey(failedContextId))
-                    {
-                        var msg = string.Format(CultureInfo.InvariantCulture,
-                       "The active context [{0}] attached in IFailedEvaluator [{1}] is not in the _activeContexts", failedContextId, value.Id);
-                        Exceptions.Throw(new SystemException(msg), Logger);
-                    }
-                    else
-                    {
-                        _activeContexts.Remove(value.FailedContexts[0].Id);
-                    }
-                }
-                else
-                {
-                    var msg = string.Format(CultureInfo.InvariantCulture,
-                        "There are [{0}] contexts attached in the failed evaluator. Expected number is 1.",
-                        value.FailedContexts.Count);
-                    Exceptions.Throw(new IMRUSystemException(msg), Logger);
-                }
-            }
-        }
-
-        private void AddFailedEvaluator(IFailedEvaluator value)
-        {
-            lock (_lock)
-            {
-                _failedEvaluators.Add(value);
+                _evaluatorManager.RequestUpdateEvaluator();
             }
         }
 
@@ -584,32 +566,34 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             return perMapperConfiguration;
         }
 
-        /// <summary>
-        /// Request map evaluators from resource manager
-        /// </summary>
-        /// <param name="numEvaluators">Number of evaluators to request</param>
-        private void RequestMapEvaluators(int numEvaluators)
-        {
-            _evaluatorRequestor.Submit(
-                _evaluatorRequestor.NewBuilder()
-                    .SetMegabytes(_memoryPerMapper)
-                    .SetNumber(numEvaluators)
-                    .SetCores(_coresPerMapper)
-                    .Build());
-        }
+        /////// <summary>
+        /////// Request map evaluators from resource manager
+        /////// </summary>
+        /////// <param name="numEvaluators">Number of evaluators to request</param>
+        ////private void RequestMapEvaluators(int numEvaluators)
+        ////{
+        ////    _evaluatorRequestor.Submit(
+        ////        _evaluatorRequestor.NewBuilder()
+        ////            .SetMegabytes(_memoryPerMapper)
+        ////            .SetNumber(numEvaluators)
+        ////            .SetCores(_coresPerMapper)
+        ////            .SetEvaluatorBatchId(EvaluatorManager.MapperBatchId)
+        ////            .Build());
+        ////}
 
-        /// <summary>
-        /// Request update/master evaluator from resource manager
-        /// </summary>
-        private void RequestUpdateEvaluator()
-        {
-            _evaluatorRequestor.Submit(
-                _evaluatorRequestor.NewBuilder()
-                    .SetCores(_coresForUpdateTask)
-                    .SetMegabytes(_memoryForUpdateTask)
-                    .SetNumber(1)
-                    .Build());
-        }
+        /////// <summary>
+        /////// Request update/master evaluator from resource manager
+        /////// </summary>
+        ////private void RequestUpdateEvaluator()
+        ////{
+        ////    _evaluatorRequestor.Submit(
+        ////        _evaluatorRequestor.NewBuilder()
+        ////            .SetCores(_coresForUpdateTask)
+        ////            .SetMegabytes(_memoryForUpdateTask)
+        ////            .SetNumber(1)
+        ////            .SetEvaluatorBatchId(EvaluatorManager.MasterBatchId)
+        ////            .Build());
+        ////}
 
         private void StartAction()
         {
@@ -617,10 +601,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             {
                 _numberofAppErrors = 0;
 
-                bool requestMaster = !_recoveryMode || IsMasterFailed();
-                int mappersToRequest = _recoveryMode ? NumberofFailedMappers() : _totalMappers;
+                bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterFailed();
+                int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers() : _totalMappers;
 
-                _failedEvaluators.Clear();
+                _evaluatorManager.ResetFailedEvalutors();
 
                 if (_systemState == null)
                 {
@@ -635,33 +619,19 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 if (requestMaster)
                 {
                     Logger.Log(Level.Info, "Requesting a master Evaluator.");
-                    RequestUpdateEvaluator();
+                    _evaluatorManager.RequestUpdateEvaluator();
                 }
                 if (mappersToRequest > 0)
                 {
                     Logger.Log(Level.Info, string.Format("Requesting {0} map Evaluators.", mappersToRequest));
-                    RequestMapEvaluators(mappersToRequest);
+                    _evaluatorManager.RequestMapEvaluators(mappersToRequest);
                 }
             }
         }
 
-        private bool IsMasterFailed()
-        {
-            return _failedEvaluators.Any(e => _serviceAndContextConfigurationProvider.IsMasterEvaluatorId(e.Id));
-        }
-
-        private int NumberofFailedMappers()
-        {
-            if (IsMasterFailed())
-            {
-                return _failedEvaluators.Count - 1;
-            }
-            return _failedEvaluators.Count;
-        }
-
         private bool Recoverable()
         {
-            return _failedEvaluators.Count < _allowedFailedEvaluators 
+            return !_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures 
                 && _numberofAppErrors == 0 
                 && _numberOfRetryForFaultTolerant < _maxRetryNumberForFaultTolerant;
         }

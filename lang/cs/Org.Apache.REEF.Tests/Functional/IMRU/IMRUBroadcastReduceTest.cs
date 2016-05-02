@@ -36,7 +36,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
             string testFolder = DefaultRuntimeFolder + TestId;
             TestIMRUBroadcastReduce(false, testFolder);
             ValidateSuccessForLocalRuntime(NumNodes, testFolder: testFolder);
-            CleanUp(testFolder);
+            ////CleanUp(testFolder);
         }
 
         [Fact(Skip = "Requires Yarn")]
