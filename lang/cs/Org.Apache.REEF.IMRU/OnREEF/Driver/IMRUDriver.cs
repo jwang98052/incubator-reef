@@ -178,9 +178,8 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 _evaluatorManager.AddAllocatedEvaluator(allocatedEvaluator);
 
                 ContextAndServiceConfiguration configs;
-                if (_evaluatorManager.IsMasterEvaluator(allocatedEvaluator))
+                if (_evaluatorManager.IsEvaluatorForMaster(allocatedEvaluator))
                 {
-                    _evaluatorManager.SetMasterEvaluatorId(allocatedEvaluator.Id);
                    configs =
                         _serviceAndContextConfigurationProvider.GetContextConfigurationForMasterEvaluatorById(
                             allocatedEvaluator.Id);
@@ -225,7 +224,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
                 foreach (var activeContext in _contextManager.ActiveContexts)
                 {
-                    if (_serviceAndContextConfigurationProvider.IsMasterEvaluatorId(activeContext.EvaluatorId))
+                    if (_evaluatorManager.IsMasterEvaluatorId(activeContext.EvaluatorId))
                     {
                         Logger.Log(Level.Verbose, "Submitting master task");
                         _commGroup.AddTask(IMRUConstants.UpdateTaskName);
@@ -234,10 +233,11 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     else
                     {
                         Logger.Log(Level.Verbose, "Submitting map task");
-                        _serviceAndContextConfigurationProvider.RecordActiveContextPerEvaluatorId(
-                            activeContext.EvaluatorId);
-                        ////_evaluatorManager.AddContextLoadedEvalutor(activeContext.EvaluatorId);  ////replace previouse line
+                        ////_serviceAndContextConfigurationProvider.RecordActiveContextPerEvaluatorId(
+                        ////    activeContext.EvaluatorId);
+                        ////_evaluatorManager.AddContextLoadedEvalutor(activeContext.EvaluatorId);  ////replace previous line
                         //// add validation in GetTaskIdByEvaluatorId
+                        
                         string taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
                         _commGroup.AddTask(taskId);
                         _groupCommTaskStarter.QueueTask(GetMapTaskConfiguration(activeContext, taskId), activeContext);
@@ -280,45 +280,57 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="value"></param>
         public void OnNext(IFailedEvaluator value)
         {
-            if (AreIMRUTasksCompleted())
+            lock (_lock)
             {
-                Logger.Log(Level.Info,
-                    string.Format("Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", value.Id));
-                return;
-            }
+                if (AreIMRUTasksCompleted())
+                {
+                    Logger.Log(Level.Info,
+                        string.Format("Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", value.Id));
+                    return;
+                }
 
-            Logger.Log(Level.Info,
-                string.Format("Evaluator with Id: {0} failed with Exception: {1}", value.Id, value.EvaluatorException));
+                Logger.Log(Level.Info, string.Format("Evaluator with Id: {0} failed with Exception: {1}", value.Id, value.EvaluatorException));
 
-            ////int currFailedEvaluators = Interlocked.Increment(ref _currentFailedEvaluators);
-            ////if (currFailedEvaluators > _allowedFailedEvaluators)
-            ////{
-            ////    Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_allowedFailedEvaluators),
-            ////        Logger);
-            ////}
+                ////int currFailedEvaluators = Interlocked.Increment(ref _currentFailedEvaluators);
+                ////if (currFailedEvaluators > _allowedFailedEvaluators)
+                ////{
+                ////    Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_allowedFailedEvaluators),
+                ////        Logger);
+                ////}
+                if (!_evaluatorManager.IsAllocatedEvaluator(value.Id))
+                {
+                    var msg = string.Format("Failed evaluator:{0} was never allocated", value.Id);
+                    Exceptions.Throw(new IMRUSystemException(msg), Logger);
+                }
 
-            if (_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures)
-            {
-                Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_evaluatorManager.AllowedNumberOfEvaluatorFailures), Logger);
-            }
+                _contextManager.RemoveFailedContextInFailedEvaluator(value);
+                _evaluatorManager.RecordFailedEvaluator(value.Id);
 
-            _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(value.Id);
-            _contextManager.RemoveFailedContextInFailedEvaluator(value);
-            _evaluatorManager.RecordFailedEvaluator(value);
+                if (_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures)
+                {
+                    Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_evaluatorManager.AllowedNumberOfEvaluatorFailures), Logger);
+                }
 
-            bool isMaster = _serviceAndContextConfigurationProvider.IsMasterEvaluatorId(value.Id);
+                bool isMater = _evaluatorManager.IsMasterEvaluatorId(value.Id);
 
-            // If failed evaluator is master then ask for master 
-            // evaluator else ask for mapper evaluator
-            if (!isMaster)
-            {
-                Logger.Log(Level.Info, string.Format("Requesting a replacement map Evaluator for {0}", value.Id));
-                _evaluatorManager.RequestMapEvaluators(1);
-            }
-            else
-            {
-                Logger.Log(Level.Info, string.Format("Requesting a replacement master Evaluator for {0}", value.Id));
-                _evaluatorManager.RequestUpdateEvaluator();
+                //// Push evaluator id back to PartitionIdProvider if it is not master
+                if (!isMater)
+                {
+                    _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(value.Id);
+                }
+
+                // If failed evaluator is master then ask for master 
+                // evaluator else ask for mapper evaluator
+                if (!isMater)
+                {
+                    Logger.Log(Level.Info, string.Format("Requesting a replacement map Evaluator for {0}", value.Id));
+                    _evaluatorManager.RequestMapEvaluators(1);
+                }
+                else
+                {
+                    Logger.Log(Level.Info, string.Format("Requesting a replacement master Evaluator for {0}", value.Id));
+                    _evaluatorManager.RequestUpdateEvaluator();
+                }
             }
         }
 
@@ -601,10 +613,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             {
                 _numberofAppErrors = 0;
 
-                bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterFailed();
-                int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers() : _totalMappers;
+                bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterEvaluatorFailed;
+                int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers : _totalMappers;
 
-                _evaluatorManager.ResetFailedEvalutors();
+                _evaluatorManager.ResetFailedEvaluators();
 
                 if (_systemState == null)
                 {
@@ -619,8 +631,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 if (requestMaster)
                 {
                     Logger.Log(Level.Info, "Requesting a master Evaluator.");
+                    ////if (_recoveryMode)
+                    ////{
+                    ////    _evaluatorManager.ResetMasterEvaluatorId();
+                    ////}
                     _evaluatorManager.RequestUpdateEvaluator();
                 }
+
                 if (mappersToRequest > 0)
                 {
                     Logger.Log(Level.Info, string.Format("Requesting {0} map Evaluators.", mappersToRequest));
