@@ -65,7 +65,8 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         IObserver<ICompletedTask>,
         IObserver<IFailedEvaluator>,
         IObserver<IFailedContext>,
-        IObserver<IFailedTask>
+        IObserver<IFailedTask>,
+        IObserver<ActiveContextManager>
     {
         private static readonly Logger Logger =
             Logger.GetLogger(typeof(IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>));
@@ -129,7 +130,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
             var allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
 
-            _contextManager = new ActiveContextManager(_totalMappers + 1);
+            _contextManager = new ActiveContextManager(_totalMappers + 1, this);
             EvaluatorSpecification updateSpec = new EvaluatorSpecification(memoryForUpdateTask, coresForUpdateTask);
             EvaluatorSpecification mapperSpec = new EvaluatorSpecification(memoryPerMapper, coresPerMapper);
 
@@ -203,11 +204,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             lock (_lock)
             {
                 _contextManager.Add(activeContext);
-
-                if (_contextManager.NumberOfActiveContexts == _totalMappers + 1)
-                {
-                    SubmitTasks();
-                }
             }
         }
 
@@ -219,7 +215,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
             lock (_lock)
             {
-                AddGroupCommunicationOperators();
+                AddCommunicationGroupWithOperators();
                 _groupCommTaskStarter = new TaskStarter(_groupCommDriver, _totalMappers + 1);
 
                 foreach (var activeContext in _contextManager.ActiveContexts)
@@ -473,7 +469,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         }
 
         /// <summary>
-        /// Generate the group communicaiton configuration to be added 
+        /// Generate the group communication configuration to be added 
         /// to the tasks
         /// </summary>
         /// <returns>The group communication configuration</returns>
@@ -495,7 +491,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <summary>
         /// Adds broadcast and reduce operators to the default communication group
         /// </summary>
-        private void AddGroupCommunicationOperators()
+        private void AddCommunicationGroupWithOperators()
         {
             var reduceFunctionConfig = _configurationManager.ReduceFunctionConfiguration;
             var mapOutputPipelineDataConverterConfig = _configurationManager.MapOutputPipelineDataConverterConfiguration;
@@ -611,18 +607,18 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
             lock (_lock)
             {
-                _numberofAppErrors = 0;
-
                 bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterEvaluatorFailed;
                 int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers : _totalMappers;
 
+                //reset failures
+                _numberofAppErrors = 0;
                 _evaluatorManager.ResetFailedEvaluators();
 
-                if (_systemState == null)
+                if (_systemState == null) //// First time
                 {
                     _systemState = new SystemStateMachine();
                 }
-                else
+                else //// recovery case
                 {
                     _numberOfRetryForFaultTolerant++;
                     _systemState.MoveNext(SystemStateEvent.Recover);
@@ -631,10 +627,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 if (requestMaster)
                 {
                     Logger.Log(Level.Info, "Requesting a master Evaluator.");
-                    ////if (_recoveryMode)
-                    ////{
-                    ////    _evaluatorManager.ResetMasterEvaluatorId();
-                    ////}
                     _evaluatorManager.RequestUpdateEvaluator();
                 }
 
@@ -651,6 +643,12 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             return !_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures 
                 && _numberofAppErrors == 0 
                 && _numberOfRetryForFaultTolerant < _maxRetryNumberForFaultTolerant;
+        }
+
+        public void OnNext(ActiveContextManager value)
+        {
+            Logger.Log(Level.Info, string.Format("received event from ActiveContextManager with NumberOfActiveContexts :", value.NumberOfActiveContexts));
+            SubmitTasks();
         }
     }
 }
