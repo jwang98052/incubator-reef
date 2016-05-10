@@ -74,9 +74,9 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         private readonly ConfigurationManager _configurationManager;
         private readonly int _totalMappers;
         ////private readonly IEvaluatorRequestor _evaluatorRequestor;
-        private ICommunicationGroupDriver _commGroup;
+        ////private ICommunicationGroupDriver _commGroup;
         private readonly IGroupCommDriver _groupCommDriver;
-        private TaskStarter _groupCommTaskStarter;
+        ////private TaskStarter _groupCommTaskStarter;
         private readonly ConcurrentStack<IConfiguration> _perMapperConfiguration;
         ////private readonly int _coresPerMapper;
         ////private readonly int _coresForUpdateTask;
@@ -86,10 +86,11 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         private readonly ISet<ICompletedTask> _completedTasks = new HashSet<ICompletedTask>();
         private readonly ActiveContextManager _contextManager;
         private readonly EvaluatorManager _evaluatorManager;
+        private readonly TaskManager _taskManager;
         ////private readonly int _allowedFailedEvaluators;
         //// private int _currentFailedEvaluators = 0;
         private readonly bool _invokeGC;
-        private int _numberOfReadyTasks = 0;
+        ////private int _numberOfReadyTasks = 0;
         private readonly object _lock = new object();
 
         //// fault tolerant
@@ -130,11 +131,15 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
             var allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
 
-            _contextManager = new ActiveContextManager(_totalMappers + 1, this);
+            _contextManager = new ActiveContextManager(_totalMappers + 1);
+            _contextManager.Subscribe(this);
+
             EvaluatorSpecification updateSpec = new EvaluatorSpecification(memoryForUpdateTask, coresForUpdateTask);
             EvaluatorSpecification mapperSpec = new EvaluatorSpecification(memoryPerMapper, coresPerMapper);
 
             _evaluatorManager = new EvaluatorManager(_totalMappers + 1, allowedFailedEvaluators, evaluatorRequestor, updateSpec, mapperSpec);
+
+            _taskManager = new TaskManager(_totalMappers + 1, _groupCommDriver.MasterTaskId, _groupCommDriver);
 
             ////fault tolerant
             _maxRetryNumberForFaultTolerant = maxRetryNumberInRecovery;
@@ -215,35 +220,66 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
             lock (_lock)
             {
-                AddCommunicationGroupWithOperators();
-                _groupCommTaskStarter = new TaskStarter(_groupCommDriver, _totalMappers + 1);
+                var commGroup = AddCommunicationGroupWithOperators();
+                _taskManager.Reset();
 
                 foreach (var activeContext in _contextManager.ActiveContexts)
                 {
                     if (_evaluatorManager.IsMasterEvaluatorId(activeContext.EvaluatorId))
                     {
                         Logger.Log(Level.Verbose, "Submitting master task");
-                        _commGroup.AddTask(IMRUConstants.UpdateTaskName);
-                        _groupCommTaskStarter.QueueTask(GetUpdateTaskConfiguration(), activeContext);
+                        commGroup.AddTask(_groupCommDriver.MasterTaskId);
+                        _taskManager.AddTask(_groupCommDriver.MasterTaskId, GetUpdateTaskConfiguration(_groupCommDriver.MasterTaskId), activeContext);
                     }
                     else
                     {
                         Logger.Log(Level.Verbose, "Submitting map task");
-                        ////_serviceAndContextConfigurationProvider.RecordActiveContextPerEvaluatorId(
-                        ////    activeContext.EvaluatorId);
-                        ////_evaluatorManager.AddContextLoadedEvalutor(activeContext.EvaluatorId);  ////replace previous line
-                        //// add validation in GetTaskIdByEvaluatorId
-                        
                         string taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
-                        _commGroup.AddTask(taskId);
-                        _groupCommTaskStarter.QueueTask(GetMapTaskConfiguration(activeContext, taskId), activeContext);
-                        _numberOfReadyTasks++;
-                        Logger.Log(Level.Verbose,
-                            string.Format("{0} Tasks are ready for submission", _numberOfReadyTasks));
+                        commGroup.AddTask(taskId);
+                        _taskManager.AddTask(taskId, GetMapTaskConfiguration(activeContext, taskId), activeContext);
                     }
                 }
+                _taskManager.SubmitTasks();
             }
         }
+
+        /////// <summary>
+        /////// Creates a new Communication Group and adds Group Communication Operators,
+        /////// specifies the Map or Update task to run on each active context.
+        /////// </summary>
+        ////private void SubmitTasks()
+        ////{
+        ////    lock (_lock)
+        ////    {
+        ////        var commGroup = AddCommunicationGroupWithOperators();
+        ////        _groupCommTaskStarter = new TaskStarter(_groupCommDriver, _totalMappers + 1);
+
+        ////        foreach (var activeContext in _contextManager.ActiveContexts)
+        ////        {
+        ////            if (_evaluatorManager.IsMasterEvaluatorId(activeContext.EvaluatorId))
+        ////            {
+        ////                Logger.Log(Level.Verbose, "Submitting master task");
+        ////                commGroup.AddTask(IMRUConstants.UpdateTaskName);
+        ////                _groupCommTaskStarter.QueueTask(GetUpdateTaskConfiguration(), activeContext);
+        ////            }
+        ////            else
+        ////            {
+        ////                Logger.Log(Level.Verbose, "Submitting map task");
+        ////                ////_serviceAndContextConfigurationProvider.RecordActiveContextPerEvaluatorId(
+        ////                ////    activeContext.EvaluatorId);
+        ////                ////_evaluatorManager.AddContextLoadedEvalutor(activeContext.EvaluatorId);  ////replace previous line
+        ////                //// add validation in GetTaskIdByEvaluatorId
+
+        ////                string taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
+        ////                commGroup.AddTask(taskId);
+        ////                _groupCommTaskStarter.QueueTask(GetMapTaskConfiguration(activeContext, taskId), activeContext);
+        ////                _numberOfReadyTasks++;
+        ////                Logger.Log(Level.Verbose,
+        ////                    string.Format("{0} Tasks are ready for submission", _numberOfReadyTasks));
+        ////            }
+        ////        }
+        ////    }
+        ////}
 
         /// <summary>
         /// Specifies what to do when the task is completed
@@ -302,7 +338,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 _contextManager.RemoveFailedContextInFailedEvaluator(value);
                 _evaluatorManager.RecordFailedEvaluator(value.Id);
 
-                if (_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures)
+                if (_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures())
                 {
                     Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_evaluatorManager.AllowedNumberOfEvaluatorFailures), Logger);
                 }
@@ -430,13 +466,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// Merge configurations of all the inputs to the UpdateTaskHost.
         /// </summary>
         /// <returns>Update task configuration</returns>
-        private IConfiguration GetUpdateTaskConfiguration()
+        private IConfiguration GetUpdateTaskConfiguration(string taskId)
         {
             var partialTaskConf =
                 TangFactory.GetTang()
                     .NewConfigurationBuilder(TaskConfiguration.ConfigurationModule
                         .Set(TaskConfiguration.Identifier,
-                            IMRUConstants.UpdateTaskName)
+                            taskId)
                         .Set(TaskConfiguration.Task,
                             GenericType<UpdateTaskHost<TMapInput, TMapOutput, TResult>>.Class)
                         .Build(),
@@ -491,7 +527,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <summary>
         /// Adds broadcast and reduce operators to the default communication group
         /// </summary>
-        private void AddCommunicationGroupWithOperators()
+        private ICommunicationGroupDriver AddCommunicationGroupWithOperators()
         {
             var reduceFunctionConfig = _configurationManager.ReduceFunctionConfiguration;
             var mapOutputPipelineDataConverterConfig = _configurationManager.MapOutputPipelineDataConverterConfiguration;
@@ -537,20 +573,22 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                         .Build();
             }
 
-            _commGroup =
+            var commGroup =
                 _groupCommDriver.NewCommunicationGroup(IMRUConstants.CommunicationGroupName, _totalMappers + 1)
                     .AddBroadcast<MapInputWithControlMessage<TMapInput>>(
                         IMRUConstants.BroadcastOperatorName,
-                        IMRUConstants.UpdateTaskName,
+                        _groupCommDriver.MasterTaskId,
                         TopologyTypes.Tree,
                         mapInputPipelineDataConverterConfig)
                     .AddReduce<TMapOutput>(
                         IMRUConstants.ReduceOperatorName,
-                        IMRUConstants.UpdateTaskName,
+                        _groupCommDriver.MasterTaskId,
                         TopologyTypes.Tree,
                         reduceFunctionConfig,
                         mapOutputPipelineDataConverterConfig)
                     .Build();
+
+            return commGroup;
         }
 
         /// <summary>
@@ -607,18 +645,18 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
             lock (_lock)
             {
-                bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterEvaluatorFailed;
-                int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers : _totalMappers;
+                bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterEvaluatorFailed();
+                int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers() : _totalMappers;
 
-                //reset failures
+                ////reset failures
                 _numberofAppErrors = 0;
                 _evaluatorManager.ResetFailedEvaluators();
 
-                if (_systemState == null) //// First time
+                if (_systemState == null)
                 {
                     _systemState = new SystemStateMachine();
                 }
-                else //// recovery case
+                else
                 {
                     _numberOfRetryForFaultTolerant++;
                     _systemState.MoveNext(SystemStateEvent.Recover);
@@ -640,7 +678,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
         private bool Recoverable()
         {
-            return !_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures 
+            return !_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures()
                 && _numberofAppErrors == 0 
                 && _numberOfRetryForFaultTolerant < _maxRetryNumberForFaultTolerant;
         }
