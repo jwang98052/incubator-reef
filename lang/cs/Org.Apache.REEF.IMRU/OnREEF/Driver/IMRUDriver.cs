@@ -18,14 +18,15 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
-using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.Driver.Context;
 using Org.Apache.REEF.Driver.Evaluator;
 using Org.Apache.REEF.Driver.Task;
 using Org.Apache.REEF.IMRU.API;
+using Org.Apache.REEF.IMRU.OnREEF.Driver.StateMachine;
 using Org.Apache.REEF.IMRU.OnREEF.IMRUTasks;
 using Org.Apache.REEF.IMRU.OnREEF.MapInputWithControlMessage;
 using Org.Apache.REEF.IMRU.OnREEF.Parameters;
@@ -33,7 +34,6 @@ using Org.Apache.REEF.IMRU.OnREEF.ResultHandler;
 using Org.Apache.REEF.IO.PartitionedData;
 using Org.Apache.REEF.Network.Group.Config;
 using Org.Apache.REEF.Network.Group.Driver;
-using Org.Apache.REEF.Network.Group.Driver.Impl;
 using Org.Apache.REEF.Network.Group.Pipelining;
 using Org.Apache.REEF.Network.Group.Pipelining.Impl;
 using Org.Apache.REEF.Network.Group.Topology;
@@ -62,28 +62,28 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         IObserver<ICompletedTask>,
         IObserver<IFailedEvaluator>,
         IObserver<IFailedContext>,
-        IObserver<IFailedTask>
+        IObserver<IFailedTask>,
+        IObserver<IRunningTask>,
+        IObserver<IDictionary<string, IActiveContext>>
     {
         private static readonly Logger Logger =
             Logger.GetLogger(typeof(IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>));
 
         private readonly ConfigurationManager _configurationManager;
         private readonly int _totalMappers;
-        private readonly IEvaluatorRequestor _evaluatorRequestor;
-        private ICommunicationGroupDriver _commGroup;
         private readonly IGroupCommDriver _groupCommDriver;
-        private readonly TaskStarter _groupCommTaskStarter;
         private readonly ConcurrentStack<IConfiguration> _perMapperConfiguration;
-        private readonly int _coresPerMapper;
-        private readonly int _coresForUpdateTask;
-        private readonly int _memoryPerMapper;
-        private readonly int _memoryForUpdateTask;
         private readonly ISet<IPerMapperConfigGenerator> _perMapperConfigs;
-        private readonly ISet<ICompletedTask> _completedTasks = new HashSet<ICompletedTask>();
-        private readonly int _allowedFailedEvaluators;
-        private int _currentFailedEvaluators = 0;
+        private readonly TaskManager _taskManager;
         private readonly bool _invokeGC;
-        private int _numberOfReadyTasks = 0;
+        private readonly object _lock = new object();
+
+        private readonly ActiveContextManager _contextManager;
+        private readonly EvaluatorManager _evaluatorManager;
+        private readonly int _maxRetryNumberForFaultTolerant;
+        private SystemStateMachine _systemState;
+        private bool _recoveryMode = false;
+        private int _numberOfRetryForFaultTolerant = 0;
 
         private readonly ServiceAndContextConfigurationProvider<TMapInput, TMapOutput, TPartitionType>
             _serviceAndContextConfigurationProvider;
@@ -98,181 +98,460 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             [Parameter(typeof(MemoryPerMapper))] int memoryPerMapper,
             [Parameter(typeof(MemoryForUpdateTask))] int memoryForUpdateTask,
             [Parameter(typeof(AllowedFailedEvaluatorsFraction))] double failedEvaluatorsFraction,
+            [Parameter(typeof(MaxRetryNumberInRecovery))] int maxRetryNumberInRecovery,
             [Parameter(typeof(InvokeGC))] bool invokeGC,
             IGroupCommDriver groupCommDriver)
         {
             _configurationManager = configurationManager;
-            _evaluatorRequestor = evaluatorRequestor;
             _groupCommDriver = groupCommDriver;
-            _coresPerMapper = coresPerMapper;
-            _coresForUpdateTask = coresForUpdateTask;
-            _memoryPerMapper = memoryPerMapper;
-            _memoryForUpdateTask = memoryForUpdateTask;
             _perMapperConfigs = perMapperConfigs;
             _totalMappers = dataSet.Count;
 
-            _allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
+            var allowedFailedEvaluators = (int)(failedEvaluatorsFraction * dataSet.Count);
+
+            _contextManager = new ActiveContextManager(_totalMappers + 1);
+            _contextManager.Subscribe(this);
+
+            EvaluatorSpecification updateSpec = new EvaluatorSpecification(memoryForUpdateTask, coresForUpdateTask);
+            EvaluatorSpecification mapperSpec = new EvaluatorSpecification(memoryPerMapper, coresPerMapper);
+
+            _evaluatorManager = new EvaluatorManager(_totalMappers + 1, allowedFailedEvaluators, evaluatorRequestor, updateSpec, mapperSpec);
+            _taskManager = new TaskManager(_totalMappers + 1, _groupCommDriver.MasterTaskId, _groupCommDriver);
+
+            ////fault tolerant
+            _maxRetryNumberForFaultTolerant = maxRetryNumberInRecovery;
+
             _invokeGC = invokeGC;
 
-            AddGroupCommunicationOperators();
-            _groupCommTaskStarter = new TaskStarter(_groupCommDriver, _totalMappers + 1);
             _perMapperConfiguration = ConstructPerMapperConfigStack(_totalMappers);
             _serviceAndContextConfigurationProvider =
                 new ServiceAndContextConfigurationProvider<TMapInput, TMapOutput, TPartitionType>(dataSet);
 
             var msg =
                 string.Format("map task memory:{0}, update task memory:{1}, map task cores:{2}, update task cores:{3}",
-                    _memoryPerMapper,
-                    _memoryForUpdateTask,
-                    _coresPerMapper,
-                    _coresForUpdateTask);
+                    memoryPerMapper,
+                    memoryForUpdateTask,
+                    coresPerMapper,
+                    coresForUpdateTask);
             Logger.Log(Level.Info, msg);
         }
 
         /// <summary>
-        /// Requests for evaluator for update task
+        /// Requests for evaluators
         /// </summary>
         /// <param name="value">Event fired when driver started</param>
         public void OnNext(IDriverStarted value)
         {
-            RequestUpdateEvaluator();
-            //// TODO[REEF-598]: Set a timeout for this request to be satisfied. If it is not within that time, exit the Driver.
+            StartAction();
         }
 
+        #region IAllocatedEvaluator
         /// <summary>
-        /// Specifies context and service configuration for evaluator depending
-        /// on whether it is for Update function or for map function
+        /// Case WaitingForEvaluator
+        ///    Add Evaluator to the Evaluator List
+        ///    submit Context and Services
+        /// Case Fail
+        ///    Do nothing
+        /// Other cases - not expected
         /// </summary>
         /// <param name="allocatedEvaluator">The allocated evaluator</param>
         public void OnNext(IAllocatedEvaluator allocatedEvaluator)
         {
-            var configs =
-                _serviceAndContextConfigurationProvider.GetContextConfigurationForEvaluatorById(allocatedEvaluator.Id);
-            allocatedEvaluator.SubmitContextAndService(configs.Context, configs.Service);
-        }
-
-        /// <summary>
-        /// Specifies the Map or Update task to run on the active context
-        /// </summary>
-        /// <param name="activeContext"></param>
-        public void OnNext(IActiveContext activeContext)
-        {
-            Logger.Log(Level.Verbose, string.Format("Received Active Context {0}", activeContext.Id));
-
-            if (_serviceAndContextConfigurationProvider.IsMasterEvaluatorId(activeContext.EvaluatorId))
+            Logger.Log(Level.Verbose, string.Format(CultureInfo.InvariantCulture, "AllocatedEvaluator EvaluatorBatchId [{0}], memory [{1}], systemState {2}.", allocatedEvaluator.EvaluatorBatchId, allocatedEvaluator.GetEvaluatorDescriptor().Memory, _systemState.CurrentState));
+            lock (_lock)
             {
-                Logger.Log(Level.Verbose, "Submitting master task");
-                _commGroup.AddTask(IMRUConstants.UpdateTaskName);
-                _groupCommTaskStarter.QueueTask(GetUpdateTaskConfiguration(), activeContext);
-                RequestMapEvaluators(_totalMappers);
-            }
-            else
-            {
-                Logger.Log(Level.Verbose, "Submitting map task");
-                _serviceAndContextConfigurationProvider.RecordActiveContextPerEvaluatorId(activeContext.EvaluatorId);
-                string taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
-                _commGroup.AddTask(taskId);
-                _groupCommTaskStarter.QueueTask(GetMapTaskConfiguration(activeContext, taskId), activeContext);
-                Interlocked.Increment(ref _numberOfReadyTasks);
-                Logger.Log(Level.Verbose, string.Format("{0} Tasks are ready for submission", _numberOfReadyTasks));
-            }
-        }
-
-        /// <summary>
-        /// Specifies what to do when the task is completed
-        /// In this case just disposes off the task
-        /// </summary>
-        /// <param name="completedTask">The link to the completed task</param>
-        public void OnNext(ICompletedTask completedTask)
-        {
-            lock (_completedTasks)
-            {
-                Logger.Log(Level.Info,
-                    string.Format("Received completed task message from task Id: {0}", completedTask.Id));
-                _completedTasks.Add(completedTask);
-
-                if (AreIMRUTasksCompleted())
+                switch (_systemState.CurrentState)
                 {
-                    ShutDownAllEvaluators();
+                    case SystemState.WaitingForEvaluator:
+                        _evaluatorManager.AddAllocatedEvaluator(allocatedEvaluator);
+                        SubmitContextAndService(allocatedEvaluator);
+                        break;
+                    case SystemState.Fail:
+                        Logger.Log(Level.Verbose, "Receiving IAllocatedEvaluator event, but system is in FAIL state, ignore it.");
+                        break;
+                    default:
+                        UnexpectedState(allocatedEvaluator.Id, "IAllocatedEvaluator");
+                        break;
                 }
             }
         }
 
         /// <summary>
-        /// Specifies what to do when evaluator fails.
-        /// If we get all completed tasks then ignore the failure
-        /// Else request a new evaluator. If failure happens in middle of IMRU 
-        /// job we expect neighboring evaluators to fail while doing 
-        /// communication and will use FailedTask and FailedContext logic to 
-        /// order shutdown.
+        /// Gets context and service configuration for evaluator depending
+        /// on whether it is for update function or for map function
+        /// Then submits context and Service with the configuration
         /// </summary>
-        /// <param name="value"></param>
-        public void OnNext(IFailedEvaluator value)
+        /// <param name="allocatedEvaluator"></param>
+        private void SubmitContextAndService(IAllocatedEvaluator allocatedEvaluator)
         {
-            if (AreIMRUTasksCompleted())
+            ContextAndServiceConfiguration configs;
+            if (_evaluatorManager.IsEvaluatorForMaster(allocatedEvaluator))
             {
-                Logger.Log(Level.Info,
-                    string.Format("Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", value.Id));
-                return;
-            }
-
-            Logger.Log(Level.Info,
-                string.Format("Evaluator with Id: {0} failed with Exception: {1}", value.Id, value.EvaluatorException));
-            int currFailedEvaluators = Interlocked.Increment(ref _currentFailedEvaluators);
-            if (currFailedEvaluators > _allowedFailedEvaluators)
-            {
-                Exceptions.Throw(new MaximumNumberOfEvaluatorFailuresExceededException(_allowedFailedEvaluators),
-                    Logger);
-            }
-
-            _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(value.Id);
-            bool isMaster = _serviceAndContextConfigurationProvider.IsMasterEvaluatorId(value.Id);
-
-            // If failed evaluator is master then ask for master 
-            // evaluator else ask for mapper evaluator
-            if (!isMaster)
-            {
-                Logger.Log(Level.Info, string.Format("Requesting a replacement map Evaluator for {0}", value.Id));
-                RequestMapEvaluators(1);
+                configs =
+                    _serviceAndContextConfigurationProvider
+                        .GetContextConfigurationForMasterEvaluatorById(
+                            allocatedEvaluator.Id);
             }
             else
             {
-                Logger.Log(Level.Info, string.Format("Requesting a replacement master Evaluator for {0}", value.Id));
-                RequestUpdateEvaluator();
+                configs = _serviceAndContextConfigurationProvider
+                    .GetDataLoadingConfigurationForEvaluatorById(
+                        allocatedEvaluator.Id);
+            }
+            allocatedEvaluator.SubmitContextAndService(configs.Context, configs.Service);
+        }
+
+        #endregion IAllocatedEvaluator
+
+        #region IActiveContext
+        /// <summary>
+        /// Adds active context to _activeContexts collection. 
+        /// Case WaitingForEvaluator
+        ///    Adds Active Context to Active Context Manager
+        ///    If the contexts reach to the total number, triggers Submit Tasks Action in ActiveContextManager
+        /// Case Fail:
+        ///    Closes the ActiveContext
+        /// Other cases - not expected
+        /// </summary>
+        /// <param name="activeContext"></param>
+        public void OnNext(IActiveContext activeContext)
+        {
+            Logger.Log(Level.Verbose, string.Format(CultureInfo.InvariantCulture, "Received Active Context {0}, systemState {1}.", activeContext.Id, _systemState.CurrentState));
+            lock (_lock)
+            {
+                switch (_systemState.CurrentState)
+                {
+                    case SystemState.WaitingForEvaluator:
+                        _contextManager.Add(activeContext);
+                        break;
+                    case SystemState.Fail:
+                        Logger.Log(Level.Info, "Received IActiveContext event, but system is in FAIL state. Closing the context.");
+                        activeContext.Dispose();
+                        break;
+                    default:
+                        UnexpectedState(activeContext.Id, "IActiveContext");
+                        break;
+                }
+            }
+        }
+        #endregion IActiveContext
+
+        #region submit tasks
+        /// <summary>
+        /// Called from ActiveContextManager when all the expected active context are received.
+        /// It calls SubmitTasks().
+        /// </summary>
+        /// <param name="value"></param>
+        public void OnNext(IDictionary<string, IActiveContext> value)
+        {
+            Logger.Log(Level.Info, string.Format("Received event from ActiveContextManager with NumberOfActiveContexts :" + value.Count));
+            lock (_lock)
+            {
+                //// Change the system state to SubmittingTasks
+                _systemState.MoveNext(SystemStateEvent.AllContextsAreReady);
+                SubmitTasks();
             }
         }
 
+        /// <summary>
+        /// Creates a new Communication Group and adds Group Communication Operators,
+        /// specifies Map or Update task to run on each active context.
+        ///     Create a new Communication group
+        ///     For each context, adds a task to the communication group, and adds the task to TaskManager
+        ///     Make sure one master task, rest are slave tasks
+        ///     When all the tasks are added, calls TaskManager to SubmitTasks()
+        /// </summary>
+        private void SubmitTasks()
+        {
+            Logger.Log(Level.Info, string.Format("SubmitTasks with system state :" + _systemState.CurrentState));
+            var commGroup = AddCommunicationGroupWithOperators();
+            _taskManager.Reset();
+
+            foreach (var activeContext in _contextManager.ActiveContexts)
+            {
+                if (_evaluatorManager.IsMasterEvaluatorId(activeContext.EvaluatorId))
+                {
+                    Logger.Log(Level.Verbose, "Submitting master task");
+                    commGroup.AddTask(_groupCommDriver.MasterTaskId);
+                    _taskManager.AddTask(_groupCommDriver.MasterTaskId, GetUpdateTaskConfiguration(_groupCommDriver.MasterTaskId), activeContext);
+                }
+                else
+                {
+                    Logger.Log(Level.Verbose, "Submitting map task");
+                    var taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
+                    commGroup.AddTask(taskId);
+                    _taskManager.AddTask(taskId, GetMapTaskConfiguration(activeContext, taskId), activeContext);
+                }
+            }
+            _taskManager.SubmitTasks();
+        }
+        #endregion submit tasks
+
+        #region IRunningTask
+        /// <summary>
+        /// Case WaitingForEvaluator
+        ///     Add it to RunningTasks and set task state to TaskRunning
+        ///     When all the tasks are running, change system state to TasksRunning
+        /// Case ShuttingDown/Fail
+        ///     Change the task state to TaskRunning
+        ///     Send command to close the task itself
+        ///     Change the task state to TaskWaitingForClose
+        /// Other cases - not expected 
+        /// </summary>
+        /// <param name="runningTask"></param>
+        public void OnNext(IRunningTask runningTask)
+        {
+            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "Received IRunningTask {0}, systemState {1}", runningTask.Id, _systemState.CurrentState));
+            lock (_lock)
+            {
+                switch (_systemState.CurrentState)
+                {
+                    case SystemState.SubmittingTasks:
+                        _taskManager.SetRunningTask(runningTask);
+                        if (_taskManager.AreAllTasksRunning())
+                        {
+                            _systemState.MoveNext(SystemStateEvent.AllTasksAreRunning);
+                            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "All tasks are running, systemState {0}", _systemState.CurrentState));
+                        }
+                        break;
+                    case SystemState.ShuttingDown:
+                    case SystemState.Fail:
+                        _taskManager.CloseRunningTaskInSystemFailure(runningTask, TaskManager.TaskKilledByDriver);
+                        break;
+                    default:
+                        UnexpectedState(runningTask.Id, "IRuningTask");
+                        break;
+                }
+            }
+        }
+        #endregion IRunningTask
+
+        #region ICompletedTask
+        /// <summary>
+        /// Case TasksRunning
+        ///     Updates task states to TaskCompleted
+        ///     If all tasks are completed, sets system state to TasksCompleted and then go to Done action
+        /// Case ShuttingDown
+        ///     Update task states to TaskCompleted
+        ///     if RecoveryCondition == true, Start Action
+        ///     else change system state to FAIL, take FAIL action
+        /// Other cases - not expected 
+        /// </summary>
+        /// <param name="completedTask">The link to the completed task</param>
+        public void OnNext(ICompletedTask completedTask)
+        {
+            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "Received ICompletedTask {0}, systemState {1}", completedTask.Id, _systemState.CurrentState));
+
+            lock (_lock)
+            {
+                switch (_systemState.CurrentState)
+                {
+                    case SystemState.TasksRunning:
+                        _taskManager.SetCompletedTask(completedTask.Id);
+                        if (_taskManager.AreAllTasksCompleted())
+                        {
+                            _systemState.MoveNext(SystemStateEvent.AllTasksAreCompleted);
+                            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "All tasks are completed, systemState {0}", _systemState.CurrentState));
+                            DoneAction();
+                        }
+                        break;
+                    case SystemState.ShuttingDown:
+                        //// The task might be in running state or waiting for close, set it to complete anyway to make its state final
+                        _taskManager.SetCompletedTask(completedTask.Id);
+                        CheckRecovery();
+                        break;
+                    default:
+                        UnexpectedState(completedTask.Id, "ICompletedTask");
+                        break;
+                }
+            }            
+        }
+        #endregion ICompletedTask
+
+        #region IFailedEvaluator
+        /// <summary>
+        /// Specifies what to do when evaluator fails.
+        /// If we get all completed tasks then ignore the failure
+        /// Case WaitingForEvaluator
+        ///     This happens in the middle of submitting contexts. We just need to simply remove the failed evaluator 
+        ///     from EvaluatorManager and remove associated active context, if any, from ActiveContextManager
+        ///     then checks if the system is recoverable. If yes, request another Evaluator 
+        ///     If not recoverable, set system state to Fail then execute Fail action
+        /// Case SubmittingTasks/TasksRunning
+        ///     This happens either in the middle of Task submitting or all the tasks are running
+        ///     Changes the system state to ShuttingDown
+        ///     Removes Evaluator and associated context from EvaluatorManager and ActiveContextManager
+        ///     Removes associated task from running task if it was running and change the task state to TaskFailedByEvaluatorFailure
+        ///     Closes all the other running tasks
+        ///     Checks for recovery in case it is the last failure received
+        /// Case ShuttingDown
+        ///     This happens when we have received either FailedEvaluator or FailedTask, some tasks are running some are in closing.
+        ///     Removes Evaluator and associated context from EvaluatorManager and ActiveContextManager
+        ///     Removes associated task from running task if it was running, changes the task state to ClosedTask if it was waiting for close
+        ///     otherwise changes the task state to FailedTaskEvaluatorError
+        ///     Checks for recovery in case it is the last failure received
+        /// Other cases - not expected 
+        /// </summary>
+        /// <param name="failedEvaluator"></param>
+        public void OnNext(IFailedEvaluator failedEvaluator)
+        {
+            lock (_lock)
+            {
+                if (_taskManager.AreAllTasksCompleted())
+                {
+                    Logger.Log(Level.Verbose, string.Format("Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", failedEvaluator.Id));
+                    return;
+                }
+                Logger.Log(Level.Info, string.Format("Evaluator with Id: {0} failed with Exception: {1}", failedEvaluator.Id, failedEvaluator.EvaluatorException));
+
+                var isMater = _evaluatorManager.IsMasterEvaluatorId(failedEvaluator.Id);
+
+                switch (_systemState.CurrentState)
+                {
+                    case SystemState.WaitingForEvaluator:
+                        _evaluatorManager.RecordFailedEvaluator(failedEvaluator.Id);
+                        _contextManager.RemoveFailedContextInFailedEvaluator(failedEvaluator);
+                        if (Recoverable())
+                        {
+                            _numberOfRetryForFaultTolerant++;
+                            if (isMater)
+                            {
+                                Logger.Log(Level.Info, "Requesting a master Evaluator.");
+                                _evaluatorManager.RequestUpdateEvaluator();
+                            }
+                            else
+                            {
+                                _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(failedEvaluator.Id);
+                                Logger.Log(Level.Info, string.Format("Requesting a map Evaluators."));
+                                _evaluatorManager.RequestMapEvaluators(1);
+                            }
+                        }
+                        else
+                        {
+                            _systemState.MoveNext(SystemStateEvent.NotRecoverable);
+                            FailAction();
+                        }
+                        break;
+
+                    case SystemState.SubmittingTasks:
+                    case SystemState.TasksRunning:
+                        //// set system state to ShuttingDown
+                        _systemState.MoveNext(SystemStateEvent.FailedNode);
+                        _evaluatorManager.RecordFailedEvaluator(failedEvaluator.Id);
+                        _contextManager.RemoveFailedContextInFailedEvaluator(failedEvaluator);
+                        _taskManager.SetTaskFailByEvaluator(failedEvaluator);
+                        _taskManager.CloseAllRunningTasks(TaskManager.CloseTaskByDriver);
+
+                        //// Push evaluator id back to PartitionIdProvider if it is not master
+                        if (!isMater)
+                        {
+                            _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(failedEvaluator.Id);
+                        }
+
+                        CheckRecovery();
+                        break;
+
+                    case SystemState.ShuttingDown:
+                        _evaluatorManager.RecordFailedEvaluator(failedEvaluator.Id);
+                        _contextManager.RemoveFailedContextInFailedEvaluator(failedEvaluator);
+                        _taskManager.SetTaskFailByEvaluator(failedEvaluator);
+
+                        //// Push evaluator id back to PartitionIdProvider if it is not master
+                        if (!isMater)
+                        {
+                            _serviceAndContextConfigurationProvider.RecordEvaluatorFailureById(failedEvaluator.Id);
+                        }
+                        CheckRecovery();
+                        break;
+
+                    default:
+                        UnexpectedState(failedEvaluator.Id, "IFailedEvaluator");
+                        break;
+                }
+            }
+        }
+        #endregion IFailedEvaluator
+
+        #region IFailedContext
         /// <summary>
         /// Specifies what to do if Failed Context is received.
+        /// If we get all completed tasks then ignore the failure
         /// An exception is thrown if tasks are not completed.
+        /// Fault tolerant would be similar to FailedEvaluator. It is in TODO
         /// </summary>
-        /// <param name="value"></param>
-        public void OnNext(IFailedContext value)
+        /// <param name="failedContext"></param>
+        public void OnNext(IFailedContext failedContext)
         {
-            if (AreIMRUTasksCompleted())
+            lock (_lock)
             {
-                Logger.Log(Level.Info,
-                    string.Format("Context with Id: {0} failed but IMRU task is completed. So ignoring.", value.Id));
-                return;
-            }
-            Exceptions.Throw(new Exception(string.Format("Data Loading Context with Id: {0} failed", value.Id)), Logger);
-        }
+                if (_taskManager.AreAllTasksCompleted())
+                {
+                    Logger.Log(Level.Info,
+                        string.Format("Context with Id: {0} failed but IMRU tasks are completed. So ignoring.", failedContext.Id));
+                    return;
+                }
 
-        /// <summary>
-        /// Specifies what to do if a task fails.
-        /// We throw the exception and fail IMRU unless IMRU job is already done.
-        /// </summary>
-        /// <param name="value"></param>
-        public void OnNext(IFailedTask value)
-        {
-            if (AreIMRUTasksCompleted())
-            {
-                Logger.Log(Level.Info,
-                    string.Format("Task with Id: {0} failed but IMRU task is completed. So ignoring.", value.Id));
-                return;
+                var msg = string.Format("Context with Id: {0} failed with Evaluator id: {1}", failedContext.Id, failedContext.EvaluatorId);
+                Exceptions.Throw(new Exception(msg), Logger);
             }
-            Exceptions.Throw(new Exception(string.Format("Task with Id: {0} failed", value.Id)), Logger);
         }
+        #endregion IFailedContext
+
+        #region IFailedTask
+        /// <summary>
+        /// Specifies what to do when task fails.
+        /// If we get all completed tasks then ignore the failure
+        /// Case SubmittingTasks/TasksRunning
+        ///     This is the first failure received
+        ///     Changes the system state to ShuttingDown
+        ///     Removes the task from Running Tasks if the task is running
+        ///     Updates task state based on the error message
+        ///     Closes all the other running tasks and set their state to TaskWaitingForClose
+        ///     Check recovery
+        /// Case ShuttingDown
+        ///     This happens when we have received either FailedEvaluator or FailedTask, some tasks are running some are in closing.
+        ///     If the task is in TaskWaitingForClose, change its state to TaskClosedByDriver
+        ///     otherwise, as long as the task state is not TaskFailedByEvaluatorFailure, set task fail state based on the failedTask Message
+        ///     Check recovery
+        /// Other cases - not expected 
+        /// </summary>
+        /// <param name="failedTask"></param>
+        public void OnNext(IFailedTask failedTask)
+        {
+            lock (_lock)
+            {
+                if (_taskManager.AreAllTasksCompleted())
+                {
+                    Logger.Log(Level.Info,
+                        string.Format("Task with Id: {0} failed but IMRU task is completed. So ignoring.", failedTask.Id));
+                    return;
+                }
+
+                Logger.Log(Level.Info, string.Format("Task with Id: {0} failed with message: {1}", failedTask.Id, failedTask.Message));
+
+                switch (_systemState.CurrentState)
+                {
+                    case SystemState.SubmittingTasks:
+                    case SystemState.TasksRunning:
+                        //// set system state to ShuttingDown
+                        _systemState.MoveNext(SystemStateEvent.FailedNode);
+                        _taskManager.SetFailedRunningTask(failedTask);
+                        _taskManager.CloseAllRunningTasks(TaskManager.CloseTaskByDriver);
+                        CheckRecovery();
+                        break;
+
+                    case SystemState.ShuttingDown:
+                        _taskManager.SetFailedTaskInShuttingDown(failedTask);
+                        CheckRecovery();
+                        break;
+
+                    default:
+                        UnexpectedState(failedTask.Id, "IFailedTask");
+                        break;
+                }
+            }
+        }
+        #endregion IFailedTask
 
         public void OnError(Exception error)
         {
@@ -282,9 +561,34 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
         }
 
-        private bool AreIMRUTasksCompleted()
+        private void UnexpectedState(string id, string eventName)
         {
-            return _completedTasks.Count >= _totalMappers + 1;
+            var msg = string.Format(CultureInfo.InvariantCulture,
+                "Received {0} for [{1}], but system status is {2}.",
+                eventName,
+                id,
+                _systemState.CurrentState);
+            Logger.Log(Level.Warning, msg);
+        }
+
+        /// <summary>
+        /// If all the tasks are in final state, if the ystem is recoverable, start recovery
+        /// else, change the system state to Fail then take Fail action
+        /// </summary>
+        private void CheckRecovery()
+        {
+            if (_taskManager.AllInFinalState())
+            {
+                if (Recoverable())
+                {
+                    StartAction();
+                }
+                else
+                {
+                    _systemState.MoveNext(SystemStateEvent.NotRecoverable);
+                    FailAction();
+                }
+            }
         }
 
         private string GetTaskIdByEvaluatorId(string evaluatorId)
@@ -294,16 +598,74 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 _serviceAndContextConfigurationProvider.GetPartitionIdByEvaluatorId(evaluatorId));
         }
 
+        private void DoneAction()
+        {
+            ShutDownAllEvaluators();
+        }
+
+        private void FailAction()
+        {
+            ShutDownAllEvaluators();
+        }
+
         /// <summary>
         /// Shuts down evaluators once all completed task messages are received
         /// </summary>
         private void ShutDownAllEvaluators()
         {
-            foreach (var task in _completedTasks)
+            foreach (var context in _contextManager.ActiveContexts)
             {
-                Logger.Log(Level.Info, string.Format("Disposing task: {0}", task.Id));
-                task.ActiveContext.Dispose();
+                Logger.Log(Level.Info, string.Format("Disposing active context: {0}", context.Id));
+                context.Dispose();
             }
+        }
+
+        /// <summary>
+        /// Resets NumberOfFailedEvaluator and numberoAppErrors 
+        /// changes state to WAITING_FOR_EVALUATORS
+        /// If master is missing, request master
+        /// Based on the count in the evaluator list, requests total - count evaluators
+        /// </summary>
+        private void StartAction()
+        {
+            lock (_lock)
+            {
+                bool requestMaster = !_recoveryMode || _evaluatorManager.IsMasterEvaluatorFailed();
+                int mappersToRequest = _recoveryMode ? _evaluatorManager.NumberofFailedMappers() : _totalMappers;
+
+                ////reset failures
+                _evaluatorManager.ResetFailedEvaluators();
+                _taskManager.Reset();
+
+                if (_systemState == null)
+                {
+                    _systemState = new SystemStateMachine();
+                }
+                else
+                {
+                    _numberOfRetryForFaultTolerant++;
+                    _systemState.MoveNext(SystemStateEvent.Recover);
+                }
+
+                if (requestMaster)
+                {
+                    Logger.Log(Level.Info, "Requesting a master Evaluator.");
+                    _evaluatorManager.RequestUpdateEvaluator();
+                }
+
+                if (mappersToRequest > 0)
+                {
+                    Logger.Log(Level.Info, string.Format("Requesting {0} map Evaluators.", mappersToRequest));
+                    _evaluatorManager.RequestMapEvaluators(mappersToRequest);
+                }
+            }
+        }
+
+        private bool Recoverable()
+        {
+            return !_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures()
+                && _taskManager.NumberOfAppError() == 0
+                && _numberOfRetryForFaultTolerant < _maxRetryNumberForFaultTolerant;
         }
 
         /// <summary>
@@ -342,13 +704,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// Merge configurations of all the inputs to the UpdateTaskHost.
         /// </summary>
         /// <returns>Update task configuration</returns>
-        private IConfiguration GetUpdateTaskConfiguration()
+        private IConfiguration GetUpdateTaskConfiguration(string taskId)
         {
             var partialTaskConf =
                 TangFactory.GetTang()
                     .NewConfigurationBuilder(TaskConfiguration.ConfigurationModule
                         .Set(TaskConfiguration.Identifier,
-                            IMRUConstants.UpdateTaskName)
+                            taskId)
                         .Set(TaskConfiguration.Task,
                             GenericType<UpdateTaskHost<TMapInput, TMapOutput, TResult>>.Class)
                         .Build(),
@@ -381,7 +743,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         }
 
         /// <summary>
-        /// Generate the group communicaiton configuration to be added 
+        /// Generate the group communication configuration to be added 
         /// to the tasks
         /// </summary>
         /// <returns>The group communication configuration</returns>
@@ -403,7 +765,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <summary>
         /// Adds broadcast and reduce operators to the default communication group
         /// </summary>
-        private void AddGroupCommunicationOperators()
+        private ICommunicationGroupDriver AddCommunicationGroupWithOperators()
         {
             var reduceFunctionConfig = _configurationManager.ReduceFunctionConfiguration;
             var mapOutputPipelineDataConverterConfig = _configurationManager.MapOutputPipelineDataConverterConfiguration;
@@ -449,24 +811,26 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                         .Build();
             }
 
-            _commGroup =
-                _groupCommDriver.DefaultGroup
+            var commGroup =
+                _groupCommDriver.NewCommunicationGroup(IMRUConstants.CommunicationGroupName, _totalMappers + 1)
                     .AddBroadcast<MapInputWithControlMessage<TMapInput>>(
                         IMRUConstants.BroadcastOperatorName,
-                        IMRUConstants.UpdateTaskName,
+                        _groupCommDriver.MasterTaskId,
                         TopologyTypes.Tree,
                         mapInputPipelineDataConverterConfig)
                     .AddReduce<TMapOutput>(
                         IMRUConstants.ReduceOperatorName,
-                        IMRUConstants.UpdateTaskName,
+                        _groupCommDriver.MasterTaskId,
                         TopologyTypes.Tree,
                         reduceFunctionConfig,
                         mapOutputPipelineDataConverterConfig)
                     .Build();
+
+            return commGroup;
         }
 
         /// <summary>
-        /// Construct the stack of map configuraion which 
+        /// Construct the stack of map configuration which 
         /// is specific to each mapper. If user does not 
         /// specify any then its empty configuration
         /// </summary>
@@ -484,33 +848,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 perMapperConfiguration.Push(config);
             }
             return perMapperConfiguration;
-        }
-
-        /// <summary>
-        /// Request map evaluators from resource manager
-        /// </summary>
-        /// <param name="numEvaluators">Number of evaluators to request</param>
-        private void RequestMapEvaluators(int numEvaluators)
-        {
-            _evaluatorRequestor.Submit(
-                _evaluatorRequestor.NewBuilder()
-                    .SetMegabytes(_memoryPerMapper)
-                    .SetNumber(numEvaluators)
-                    .SetCores(_coresPerMapper)
-                    .Build());
-        }
-
-        /// <summary>
-        /// Request update/master evaluator from resource manager
-        /// </summary>
-        private void RequestUpdateEvaluator()
-        {
-            _evaluatorRequestor.Submit(
-                _evaluatorRequestor.NewBuilder()
-                    .SetCores(_coresForUpdateTask)
-                    .SetMegabytes(_memoryForUpdateTask)
-                    .SetNumber(1)
-                    .Build());
         }
     }
 }

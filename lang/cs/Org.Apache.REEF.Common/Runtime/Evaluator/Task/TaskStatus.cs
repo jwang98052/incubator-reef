@@ -165,6 +165,7 @@ namespace Org.Apache.REEF.Common.Runtime.Evaluator.Task
                         LOGGER.Log(Level.Info, "Sending task INIT heartbeat");
                         Heartbeat();
                         State = TaskState.Running;
+                        Heartbeat();
                     }
                     catch (Exception e)
                     {
