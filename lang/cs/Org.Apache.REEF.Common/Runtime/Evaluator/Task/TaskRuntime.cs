@@ -111,14 +111,17 @@ namespace Org.Apache.REEF.Common.Runtime.Evaluator.Task
                 }
                 catch (Exception e)
                 {
+                    Logger.Log(Level.Info, "++++++++++++++++++++1" + e.StackTrace);
                     _currentStatus.SetException(e);
                 }
                 finally
                 {
+                    Logger.Log(Level.Info, "++++++++++++++++++++2");
                     try
                     {
                         if (_userTask != null)
                         {
+                            Logger.Log(Level.Info, "+++++++++++++++++Dispose");
                             _userTask.Dispose();
                         }
                     }
@@ -130,7 +133,9 @@ namespace Org.Apache.REEF.Common.Runtime.Evaluator.Task
                 }
             });
 
+            Logger.Log(Level.Info, "++++++++++++++++++++3");
             taskThread.Start();
+            Logger.Log(Level.Info, "++++++++++++++++++++4");
             return taskThread;
         }
 

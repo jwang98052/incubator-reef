@@ -28,6 +28,7 @@ using Microsoft.WindowsAzure.Storage.Blob;
 using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Client.Local;
 using Org.Apache.REEF.Client.Yarn;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
 using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Utilities;
@@ -40,6 +41,8 @@ namespace Org.Apache.REEF.Tests.Functional
 {
     public class ReefFunctionalTest : IDisposable
     {
+        private readonly static Logger Logger = Logger.GetLogger(typeof(ReefFunctionalTest));
+
         protected const string DriverStdout = "driver.stdout";
         protected const string DriverStderr = "driver.stderr";
         protected const string EvaluatorStdout = "evaluator.stdout";
@@ -51,8 +54,9 @@ namespace Org.Apache.REEF.Tests.Functional
         private const string Local = "local";
         private const string YARN = "yarn";
         private const int SleepTime = 1000;
+        private const string PortRangeStart = "8900";
+        private const string PortRangeCount = "1000";
 
-        private readonly static Logger Logger = Logger.GetLogger(typeof(ReefFunctionalTest));
         private const string StorageAccountKeyEnvironmentVariable = "REEFTestStorageAccountKey";
         private const string StorageAccountNameEnvironmentVariable = "REEFTestStorageAccountName";
         private bool _testSuccess = false;
@@ -66,7 +70,7 @@ namespace Org.Apache.REEF.Tests.Functional
 
         protected Task TimerTask { get; set; }
 
-        protected bool TestSuccess 
+        protected bool TestSuccess
         {
             get { return _testSuccess; }
             set { _testSuccess = value; }
@@ -100,9 +104,9 @@ namespace Org.Apache.REEF.Tests.Functional
                     TestTimer.Elapsed += PeriodicUploadLog;
                     TestTimer.Start();
                 });
-                TimerTask.Start(); 
+                TimerTask.Start();
             }
-            
+
             ValidationUtilities.ValidateEnvVariable("JAVA_HOME");
 
             if (!Directory.Exists(BinFolder))
@@ -146,7 +150,7 @@ namespace Org.Apache.REEF.Tests.Functional
             }
         }
 
-        public void Dispose() 
+        public void Dispose()
         {
             CleanUp();
         }
@@ -168,6 +172,21 @@ namespace Org.Apache.REEF.Tests.Functional
                 "Expected number of tasks to fail (" + numberOfTasksToFail + ") differs from actual number of failed task indicators (" + failedTaskIndicators.Length + ")");
             Assert.True(numberOfEvaluatorsToFail == failedEvaluatorIndicators.Length,
                 "Expected number of evaluators to fail (" + numberOfEvaluatorsToFail + ") differs from actual number of failed evaluator indicators (" + failedEvaluatorIndicators.Length + ")");
+        }
+
+        /// <summary>
+        /// Fine the number of log lines that contains the message in the log file specified
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="subfolder"></param>
+        /// <param name="fileName"></param>
+        /// <param name="testFolder"></param>
+        /// <returns></returns>
+        protected int GetMessageCount(string message, string subfolder, string fileName, string testFolder)
+        {
+            string[] lines = ReadLogFile(fileName, subfolder, testFolder);
+            string[] linesContainsMessage = lines.Where(s => s.Contains(message)).ToArray();
+            return linesContainsMessage.Length;
         }
 
         /// <summary>
@@ -196,7 +215,7 @@ namespace Org.Apache.REEF.Tests.Functional
                 string[] successIndicators = lines.Where(s => s.Contains(message)).ToArray();
                 if (numberOfOccurrences > 0)
                 {
-                    Assert.True(numberOfOccurrences == successIndicators.Count(), 
+                    Assert.True(numberOfOccurrences == successIndicators.Count(),
                         "Expected number of message \"" + message + "\" occurrences " + numberOfOccurrences + " differs from actual " + successIndicators.Count());
                 }
                 else if (numberOfOccurrences == 0)
@@ -227,7 +246,7 @@ namespace Org.Apache.REEF.Tests.Functional
         {
             string fileName = string.Empty;
             string[] lines = null;
-            for (int i = 0; i < 60; i++)
+            for (int i = 0; i < 160; i++)
             {
                 try
                 {
@@ -237,12 +256,12 @@ namespace Org.Apache.REEF.Tests.Functional
                 }
                 catch (Exception e)
                 {
-                    if (i == 59)
+                    if (i == 159)
                     {
                         // log only last exception before failure
                         Logger.Log(Level.Verbose, e.ToString());
                     }
-                    if (i < 59)
+                    if (i < 159)
                     {
                         Thread.Sleep(SleepTime);
                     }
@@ -275,7 +294,7 @@ namespace Org.Apache.REEF.Tests.Functional
             string driverStderr = GetLogFileName(DriverStderr);
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(GetStorageConnectionString());
             CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-            CloudBlobContainer container = blobClient.GetContainerReference(DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));   
+            CloudBlobContainer container = blobClient.GetContainerReference(DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             container.CreateIfNotExists();
 
             CloudBlockBlob blob = container.GetBlockBlobReference(Path.Combine(TestId, "driverStdOut"));
@@ -351,7 +370,12 @@ namespace Org.Apache.REEF.Tests.Functional
                         .Set(LocalRuntimeClientConfiguration.RuntimeFolder, dir)
                         .Build();
                 case YARN:
-                    return YARNClientConfiguration.ConfigurationModule.Build();
+                    var yarnClientConfig = YARNClientConfiguration.ConfigurationModule.Build();
+                    var tcpPortConfig = TcpPortConfigurationModule.ConfigurationModule
+                       .Set(TcpPortConfigurationModule.PortRangeStart, PortRangeStart)
+                       .Set(TcpPortConfigurationModule.PortRangeCount, PortRangeCount)
+                       .Build();
+                    return Configurations.Merge(yarnClientConfig, tcpPortConfig);
                 default:
                     throw new Exception("Unknown runtime: " + runOnYarn);
             }

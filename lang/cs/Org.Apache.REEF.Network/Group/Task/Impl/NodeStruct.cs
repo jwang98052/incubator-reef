@@ -17,6 +17,8 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Threading;
 using Org.Apache.REEF.Network.Group.Driver.Impl;
 
 namespace Org.Apache.REEF.Network.Group.Task.Impl
@@ -50,8 +52,16 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// Gets the first message in the message queue.
         /// </summary>
         /// <returns>The first available message.</returns>
-        internal T[] GetData()
+        internal T[] GetData(int timeout)
         {
+            ////GroupCommunicationMessage<T> item;
+            ////if (_messageQueue.TryTake(out item, TimeSpan.FromMilliseconds(timeout)))
+            ////{
+            ////    return item.Data;
+            ////}
+
+            ////var msg = string.Format(CultureInfo.InvariantCulture, "##################Cannot get data from the queue after waiting for {0} milliseconds.", timeout);
+            ////throw new OperationCanceledException(msg);
             return _messageQueue.Take().Data;
         }
 

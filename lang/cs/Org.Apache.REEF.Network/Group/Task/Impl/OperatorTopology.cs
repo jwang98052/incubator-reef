@@ -289,7 +289,7 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// <returns>The parent Task's message</returns>
         public T ReceiveFromParent()
         {
-            T[] data = ReceiveFromNode(_parent);
+            T[] data = ReceiveFromNode(_parent, _timeout);
             if (data == null || data.Length != 1)
             {
                 throw new InvalidOperationException("Cannot receive data from parent node");
@@ -300,7 +300,7 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
 
         public IList<T> ReceiveListFromParent()
         {
-            T[] data = ReceiveFromNode(_parent);
+            T[] data = ReceiveFromNode(_parent, _timeout);
             if (data == null || data.Length == 0)
             {
                 throw new InvalidOperationException("Cannot receive data from parent node");
@@ -331,7 +331,7 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
 
                 foreach (var child in childrenWithData)
                 {
-                    T[] data = ReceiveFromNode(child);
+                    T[] data = ReceiveFromNode(child, _timeout);
                     if (data == null || data.Length != 1)
                     {
                         throw new InvalidOperationException("Received invalid data from child with id: " + child.Identifier);
@@ -347,6 +347,7 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
 
         public void OnError(Exception error)
         {
+            Logger.Log(Level.Error, "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" + error.StackTrace);
         }
 
         public void OnCompleted()
@@ -420,6 +421,11 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
                 Logger.Log(Level.Error, "No data to read from child");
                 throw;
             }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################GetNodeWithData {0}", e);
+                throw;
+            }
         }
 
         /// <summary>
@@ -430,10 +436,16 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// <param name="node">The NodeStruct representing the Task to send to</param>
         private void SendToNode(T message, NodeStruct<T> node)
         {
-            GeneralGroupCommunicationMessage gcm = new GroupCommunicationMessage<T>(_groupName, _operatorName,
-                _selfId, node.Identifier, message);
-
-            _sender.Send(gcm);
+            try
+            {
+                GeneralGroupCommunicationMessage gcm = new GroupCommunicationMessage<T>(_groupName, _operatorName, _selfId, node.Identifier, message);
+                _sender.Send(gcm);
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################SendToNode {0}", e);
+                throw;
+            }
         }
 
         /// <summary>
@@ -444,12 +456,20 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// <param name="node">The NodeStruct representing the Task to send to</param>
         private void SendToNode(IList<T> messages, NodeStruct<T> node)
         {
-            T[] encodedMessages = messages.ToArray();
+            try
+            {
+                T[] encodedMessages = messages.ToArray();
 
-            GroupCommunicationMessage<T> gcm = new GroupCommunicationMessage<T>(_groupName, _operatorName,
-                _selfId, node.Identifier, encodedMessages);
+                GroupCommunicationMessage<T> gcm = new GroupCommunicationMessage<T>(_groupName, _operatorName,
+                    _selfId, node.Identifier, encodedMessages);
 
-            _sender.Send(gcm);
+                _sender.Send(gcm);
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################SendToNode {0}", e);
+                throw;
+            }
         }
 
         /// <summary>
@@ -457,11 +477,20 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// Removes the NodeStruct from the nodesWithData queue if requested.
         /// </summary>
         /// <param name="node">The node to receive from</param>
+        /// <param name="timeout">The timeout for receiving data</param>
         /// <returns>The byte array message from the node</returns>
-        private T[] ReceiveFromNode(NodeStruct<T> node)
+        private T[] ReceiveFromNode(NodeStruct<T> node, int timeout)
         {
-            var data = node.GetData();
-            return data;
+            try
+            {
+                var data = node.GetData(timeout);
+                return data;
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################ReceiveFromNode throw exception.", e);
+                throw;
+            }
         }
 
         /// <summary>

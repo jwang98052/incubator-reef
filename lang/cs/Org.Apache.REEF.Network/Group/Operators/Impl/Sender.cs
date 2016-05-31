@@ -19,6 +19,7 @@ using System;
 using Org.Apache.REEF.Network.Group.Driver.Impl;
 using Org.Apache.REEF.Network.NetworkService;
 using Org.Apache.REEF.Tang.Annotations;
+using Org.Apache.REEF.Utilities.Logging;
 using Org.Apache.REEF.Wake;
 
 namespace Org.Apache.REEF.Network.Group.Operators.Impl
@@ -29,6 +30,7 @@ namespace Org.Apache.REEF.Network.Group.Operators.Impl
     /// </summary>
     internal sealed class Sender
     {
+        private static readonly Logger Logger = Logger.GetLogger(typeof(Sender));
         private readonly INetworkService<GeneralGroupCommunicationMessage> _networkService;
         private readonly IIdentifierFactory _idFactory;
 
@@ -62,10 +64,18 @@ namespace Org.Apache.REEF.Network.Group.Operators.Impl
                 throw new ArgumentException("Message destination cannot be null or empty");
             }
 
-            IIdentifier destId = _idFactory.Create(message.Destination);
-            var conn = _networkService.NewConnection(destId);
-            conn.Open();
-            conn.Write(message);
+            try
+            {
+                IIdentifier destId = _idFactory.Create(message.Destination);
+                var conn = _networkService.NewConnection(destId);
+                conn.Open();
+                conn.Write(message);
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################Sender.Send {0}", e);
+                throw;
+            }
         }
     }
 }

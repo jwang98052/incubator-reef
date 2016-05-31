@@ -118,26 +118,34 @@ namespace Org.Apache.REEF.Network.Group.Operators.Impl
                 throw new ArgumentNullException("data");
             }
 
-            foreach (var message in messageList)
+            try
             {
-                if (_topology.HasChildren())
+                foreach (var message in messageList)
                 {
-                    var reducedValueOfChildren = _topology.ReceiveFromChildren(_pipelinedReduceFunc);
-
-                    var mergeddData = new List<PipelineMessage<T>> { message };
-
-                    if (reducedValueOfChildren != null)
+                    if (_topology.HasChildren())
                     {
-                        mergeddData.Add(reducedValueOfChildren);
-                    }
+                        var reducedValueOfChildren = _topology.ReceiveFromChildren(_pipelinedReduceFunc);
 
-                    var reducedValue = _pipelinedReduceFunc.Reduce(mergeddData);
-                    _topology.SendToParent(reducedValue, MessageType.Data);
+                        var mergeddData = new List<PipelineMessage<T>> { message };
+
+                        if (reducedValueOfChildren != null)
+                        {
+                            mergeddData.Add(reducedValueOfChildren);
+                        }
+
+                        var reducedValue = _pipelinedReduceFunc.Reduce(mergeddData);
+                        _topology.SendToParent(reducedValue, MessageType.Data);
+                    }
+                    else
+                    {
+                        _topology.SendToParent(message, MessageType.Data);
+                    }
                 }
-                else
-                {
-                    _topology.SendToParent(message, MessageType.Data);
-                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################ReduceSender.Send {0}", e);
+                throw;
             }
         }
 

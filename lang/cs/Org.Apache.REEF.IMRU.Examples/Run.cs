@@ -64,8 +64,8 @@ namespace Org.Apache.REEF.IMRU.Examples
             int chunkSize = 2;
             int dims = 10;
             int iterations = 10;
-            int mapperMemory = 512;
-            int updateTaskMemory = 512;
+            int mapperMemory = 5120;
+            int updateTaskMemory = 5120;
 
             if (args.Length > 0)
             {

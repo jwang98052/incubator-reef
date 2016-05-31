@@ -33,7 +33,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver.StateMachine
             new Dictionary<StateTransition<TaskState, TaskStateEvent>, TaskState>
         {
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskNew, TaskStateEvent.SubmittedTask), TaskState.TaskSubmitted },
-            { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskNew, TaskStateEvent.ClosedTask), TaskState.TaskClosedByDriver },            
+            { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskNew, TaskStateEvent.ClosedTask), TaskState.TaskClosedByDriver },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskSubmitted, TaskStateEvent.RunningTask), TaskState.TaskRunning },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskSubmitted, TaskStateEvent.FailedTaskAppError), TaskState.TaskFailedByAppError },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskSubmitted, TaskStateEvent.FailedTaskSystemError), TaskState.TaskFailedBySystemError },
@@ -50,6 +50,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver.StateMachine
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskWaitingForClose, TaskStateEvent.FailedTaskSystemError), TaskState.TaskClosedByDriver },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskWaitingForClose, TaskStateEvent.FailedTaskEvaluatorError), TaskState.TaskClosedByDriver },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskWaitingForClose, TaskStateEvent.FailedTaskCommunicationError), TaskState.TaskClosedByDriver },
+            { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskWaitingForClose, TaskStateEvent.CompletedTask), TaskState.TaskClosedByDriver },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskFailedBySystemError, TaskStateEvent.FailedTaskEvaluatorError), TaskState.TaskFailedByEvaluatorFailure },
             { new StateTransition<TaskState, TaskStateEvent>(TaskState.TaskFailedByGroupCommunication, TaskStateEvent.FailedTaskEvaluatorError), TaskState.TaskFailedByEvaluatorFailure }
         });

@@ -19,6 +19,7 @@ using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.Apache.REEF.Utilities.AsyncUtils;
 using Org.Apache.REEF.Utilities.Diagnostics;
 using Org.Apache.REEF.Utilities.Logging;
 using Org.Apache.REEF.Wake.StreamingCodec;
@@ -63,7 +64,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         /// <param name="clientFactory">TcpClient factory</param>
         internal StreamingTransportClient(IPEndPoint remoteEndpoint,
             IObserver<TransportEvent<T>> observer,
-            IStreamingCodec<T> streamingCodec, 
+            IStreamingCodec<T> streamingCodec,
             ITcpClientConnectionFactory clientFactory)
             : this(remoteEndpoint, streamingCodec, clientFactory)
         {
@@ -112,14 +113,22 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         {
             while (!_cancellationSource.IsCancellationRequested)
             {
-                T message = await _link.ReadAsync(_cancellationSource.Token);
-                if (message == null)
+                try
                 {
-                    break;
-                }
+                    T message = await _link.ReadAsync(_cancellationSource.Token);
+                    if (message == null)
+                    {
+                        break;
+                    }
 
-                TransportEvent<T> transportEvent = new TransportEvent<T>(message, _link);
-                _observer.OnNext(transportEvent);
+                    TransportEvent<T> transportEvent = new TransportEvent<T>(message, _link);
+                    _observer.OnNext(transportEvent);
+                }
+                catch (Exception e)
+                {
+                    Logger.Log(Level.Warning, "$$$$$$$$$$$$$$$$$$$$$$$$Client response loop threw", e.GetBaseException());
+                    _observer.OnError(e);
+                }
             }
         }
     }

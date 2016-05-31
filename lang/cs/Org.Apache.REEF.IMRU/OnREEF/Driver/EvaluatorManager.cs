@@ -206,6 +206,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="evaluatorId"></param>
         internal void RecordFailedEvaluator(string evaluatorId)
         {
+            Logger.Log(Level.Info, "$$$$$$$$$$$RecordFailedEvaluator");
             RemoveAllocatedEvaluator(evaluatorId);
 
             if (_failedEvaluatorIds.Contains(evaluatorId))

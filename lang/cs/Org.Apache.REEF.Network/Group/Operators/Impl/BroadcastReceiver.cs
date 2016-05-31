@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+using System;
 using System.Reactive;
 using System.Collections.Generic;
 using Org.Apache.REEF.Network.Group.Config;
@@ -96,23 +97,34 @@ namespace Org.Apache.REEF.Network.Group.Operators.Impl
         /// <returns>The incoming message</returns>
         public T Receive()
         {
-            PipelineMessage<T> message;
-            var messageList = new List<PipelineMessage<T>>();
-
-            do
+            try
             {
-                message = _topology.ReceiveFromParent();
+                PipelineMessage<T> message;
+                var messageList = new List<PipelineMessage<T>>();
 
-                if (_topology.HasChildren())
+                do
                 {
-                    _topology.SendToChildren(message, MessageType.Data);
-                }
+                    Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()1 ");
+                    message = _topology.ReceiveFromParent();
+                    Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()2 ");
 
-                messageList.Add(message);
-            } 
-            while (!message.IsLast);
+                    if (_topology.HasChildren())
+                    {
+                        Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()3 ");
+                        _topology.SendToChildren(message, MessageType.Data);
+                        Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()4 ");
+                    }
 
-            return PipelineDataConverter.FullMessage(messageList);
+                    messageList.Add(message);
+                } 
+                while (!message.IsLast);
+                return PipelineDataConverter.FullMessage(messageList);
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################BroadcastReceiver.Receive {0}", e);
+                throw;
+            }
         }
 
         /// <summary>

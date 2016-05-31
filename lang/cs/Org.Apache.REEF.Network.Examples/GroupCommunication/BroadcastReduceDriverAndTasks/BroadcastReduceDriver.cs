@@ -25,6 +25,7 @@ using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.Driver.Bridge;
 using Org.Apache.REEF.Driver.Context;
 using Org.Apache.REEF.Driver.Evaluator;
+using Org.Apache.REEF.Driver.Task;
 using Org.Apache.REEF.Wake.StreamingCodec.CommonStreamingCodecs;
 using Org.Apache.REEF.Network.Group.Config;
 using Org.Apache.REEF.Network.Group.Driver;
@@ -49,7 +50,10 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
         IObserver<IAllocatedEvaluator>, 
         IObserver<IActiveContext>, 
         IObserver<IFailedEvaluator>, 
-        IObserver<IDriverStarted>
+        IObserver<IFailedTask>,
+        IObserver<ICompletedTask>,
+        IObserver<IRunningTask>,
+    IObserver<IDriverStarted>
     {
         private static readonly Logger LOGGER = Logger.GetLogger(typeof(BroadcastReduceDriver));
 
@@ -62,6 +66,10 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
         private readonly IConfiguration _tcpPortProviderConfig;
         private readonly IConfiguration _codecConfig;
         private readonly IEvaluatorRequestor _evaluatorRequestor;
+        private object _lock = new object();
+        private bool _failOne = false;
+
+        IDictionary<string, IRunningTask> _runningTasks = new Dictionary<string, IRunningTask>();
 
         [Inject]
         public BroadcastReduceDriver(
@@ -132,6 +140,7 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
                     TaskConfiguration.ConfigurationModule
                         .Set(TaskConfiguration.Identifier, GroupTestConstants.MasterTaskId)
                         .Set(TaskConfiguration.Task, GenericType<MasterTask>.Class)
+                        .Set(TaskConfiguration.OnClose, GenericType<MasterTask>.Class)
                         .Build())
                     .BindNamedParameter<GroupTestConfig.NumEvaluators, int>(
                         GenericType<GroupTestConfig.NumEvaluators>.Class,
@@ -152,6 +161,7 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
                     TaskConfiguration.ConfigurationModule
                         .Set(TaskConfiguration.Identifier, slaveTaskId)
                         .Set(TaskConfiguration.Task, GenericType<SlaveTask>.Class)
+                        .Set(TaskConfiguration.OnClose, GenericType<SlaveTask>.Class)
                         .Build())
                     .BindNamedParameter<GroupTestConfig.NumEvaluators, int>(
                         GenericType<GroupTestConfig.NumEvaluators>.Class,
@@ -168,6 +178,7 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
 
         public void OnNext(IFailedEvaluator value)
         {
+            LOGGER.Log(Level.Info, "$$$$$$$$$$$$$$$$$$$$IFailedEvaluator id:" + value.Id + " task id: " + value.FailedTask.Value.Id);
         }
 
         public void OnNext(IDriverStarted value)
@@ -190,6 +201,44 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
 
         public void OnCompleted()
         {
+        }
+
+        public void OnNext(IFailedTask value)
+        {
+            lock (_lock)
+            {
+                LOGGER.Log(Level.Info, "$$$$$$$$$$$$$$$$$$$$$$$$$$IFailedTask id:" + value.Id);
+                _runningTasks.Remove(value.Id);
+                value.GetActiveContext().Value.Dispose();
+
+                foreach (var t in _runningTasks.Values)
+                {
+                    LOGGER.Log(Level.Info, "Dispose running task id:" + t.Id);
+                    t.Dispose();
+                }
+                _runningTasks.Clear();
+            }
+        }
+
+        public void OnNext(ICompletedTask value)
+        {
+            LOGGER.Log(Level.Info, "ICompletedTask id:" + value.Id + " task id: " + value.Id);
+            value.ActiveContext.Dispose();
+        }
+
+        public void OnNext(IRunningTask value)
+        {
+            LOGGER.Log(Level.Info, "IRunningTask id:" + value.Id);
+            if (value.Id.StartsWith("SlaveTask-") && _failOne)
+            {
+                _failOne = false;
+                LOGGER.Log(Level.Info, "Make a task fail:" + value.Id);
+                value.Dispose();
+            }
+            else
+            {
+                _runningTasks.Add(value.Id, value);
+            }
         }
 
         private class SumFunction : IReduceFunction<int>

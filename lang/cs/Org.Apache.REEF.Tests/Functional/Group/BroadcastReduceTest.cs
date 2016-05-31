@@ -41,7 +41,7 @@ namespace Org.Apache.REEF.Tests.Functional.Group
             string testFolder = DefaultRuntimeFolder + TestId;
             TestBroadcastAndReduce(false, numTasks, testFolder);
             ValidateSuccessForLocalRuntime(numTasks, testFolder: testFolder);
-            CleanUp(testFolder);
+            ////CleanUp(testFolder);
         }
 
         [Fact(Skip = "Requires Yarn")]
@@ -66,7 +66,10 @@ namespace Org.Apache.REEF.Tests.Functional.Group
                     .Set(DriverConfiguration.OnEvaluatorAllocated, GenericType<BroadcastReduceDriver>.Class)
                     .Set(DriverConfiguration.OnEvaluatorFailed, GenericType<BroadcastReduceDriver>.Class)
                     .Set(DriverConfiguration.OnContextActive, GenericType<BroadcastReduceDriver>.Class)
-                    .Set(DriverConfiguration.CustomTraceLevel, Level.Info.ToString())
+                    .Set(DriverConfiguration.OnTaskFailed, GenericType<BroadcastReduceDriver>.Class)
+                    .Set(DriverConfiguration.OnTaskCompleted, GenericType<BroadcastReduceDriver>.Class)
+                    .Set(DriverConfiguration.OnTaskRunning, GenericType<BroadcastReduceDriver>.Class)
+                    .Set(DriverConfiguration.CustomTraceLevel, Level.Verbose.ToString())
                     .Build())
                 .BindNamedParameter<GroupTestConfig.NumIterations, int>(
                     GenericType<GroupTestConfig.NumIterations>.Class,

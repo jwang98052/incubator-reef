@@ -18,7 +18,9 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
+using Org.Apache.REEF.Common.Tasks.Events;
 using Org.Apache.REEF.Network.Group.Operators;
 using Org.Apache.REEF.Network.Group.Task;
 using Org.Apache.REEF.Tang.Annotations;
@@ -26,7 +28,7 @@ using Org.Apache.REEF.Utilities.Logging;
 
 namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDriverAndTasks
 {
-    public class MasterTask : ITask
+    public class MasterTask : ITask, IObserver<ICloseEvent>
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(MasterTask));
 
@@ -37,6 +39,8 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
         private readonly ICommunicationGroupClient _commGroup;
         private readonly IBroadcastSender<int> _broadcastSender;
         private readonly IReduceReceiver<int> _sumReducer;
+        private bool _break;
+        private bool _stoped;
 
         [Inject]
         public MasterTask(
@@ -61,6 +65,12 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
 
             for (int i = 1; i <= _numIters; i++)
             {
+                if (_break)
+                {
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$returning from slave task by clsoe event");
+                    _stoped = true;
+                    return null;
+                }
                 if (i == 2)
                 {
                     broadcastTime.Reset();
@@ -94,8 +104,14 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
                             reduceTime.ElapsedMilliseconds / ((double)(i - 1)));
                     Logger.Log(Level.Info, msg);
                 }
+                //// simulate fail
+                ////if (i > 1)
+                ////{
+                ////    throw new Exception("$$$$$$$$$$$$$$in master throw exception");
+                ////}
             }
 
+            _stoped = true;
             return null;
         }
 
@@ -107,6 +123,27 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
         private int TriangleNumber(int n)
         {
             return Enumerable.Range(1, n).Sum();
+        }
+
+        public void OnNext(ICloseEvent value)
+        {
+            Logger.Log(Level.Info, "#######################SlaveTask ICloseEvent");
+            _break = true;
+            Thread.Sleep(2000);
+            if (!_stoped)
+            {
+                throw new SystemException("Kille by driver.");
+            }
+        }
+
+        public void OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnCompleted()
+        {
+            throw new NotImplementedException();
         }
     }
 }

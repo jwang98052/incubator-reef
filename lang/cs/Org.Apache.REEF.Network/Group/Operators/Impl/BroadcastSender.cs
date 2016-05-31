@@ -105,9 +105,17 @@ namespace Org.Apache.REEF.Network.Group.Operators.Impl
                 throw new ArgumentNullException("data");
             }
 
-            foreach (var message in messageList)
+            try
             {
-                _topology.SendToChildren(message, MessageType.Data);
+                foreach (var message in messageList)
+                {
+                    _topology.SendToChildren(message, MessageType.Data);
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################BroadcastSender.Send {0}", e);
+                throw;
             }
         }
 

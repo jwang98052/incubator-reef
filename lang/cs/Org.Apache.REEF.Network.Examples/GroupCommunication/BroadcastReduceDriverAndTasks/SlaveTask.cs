@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
+using Org.Apache.REEF.Common.Tasks.Events;
 using Org.Apache.REEF.Network.Group.Operators;
 using Org.Apache.REEF.Network.Group.Task;
 using Org.Apache.REEF.Tang.Annotations;
@@ -25,7 +28,7 @@ using Org.Apache.REEF.Utilities.Logging;
 
 namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDriverAndTasks
 {
-    public class SlaveTask : ITask
+    public class SlaveTask : ITask, IObserver<ICloseEvent>
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(SlaveTask));
 
@@ -34,13 +37,15 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
         private readonly ICommunicationGroupClient _commGroup;
         private readonly IBroadcastReceiver<int> _broadcastReceiver;
         private readonly IReduceSender<int> _triangleNumberSender;
+        private bool _break;
+        private bool _stoped;
 
         [Inject]
         public SlaveTask(
             [Parameter(typeof(GroupTestConfig.NumIterations))] int numIters,
             IGroupCommClient groupCommClient)
         {
-            Logger.Log(Level.Info, "Hello from slave task");
+            Logger.Log(Level.Info, "Hello from slave task, numIters:" + numIters);
 
             _numIterations = numIters;
             _groupCommClient = groupCommClient;
@@ -54,33 +59,64 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
             Stopwatch broadcastTime = new Stopwatch();
             Stopwatch reduceTime = new Stopwatch();
 
-            for (int i = 0; i < _numIterations; i++)
+            try
             {
-                broadcastTime.Start();
-
-                // Receive n from Master Task
-                int n = _broadcastReceiver.Receive();
-                broadcastTime.Stop();
-
-                Logger.Log(Level.Info, "Calculating TriangleNumber({0}) on slave task...", n);
-
-                // Calculate the nth Triangle number and send it back to driver
-                int triangleNum = TriangleNumber(n);
-                Logger.Log(Level.Info, "Sending sum: {0} on iteration {1}.", triangleNum, i);
-                
-                reduceTime.Start();
-                _triangleNumberSender.Send(triangleNum);
-                reduceTime.Stop();
-                
-                if (i >= 1)
+                for (int i = 0; i < _numIterations; i++)
                 {
-                    var msg = string.Format("Average time (milliseconds) taken for broadcast: {0} and reduce: {1}",
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$slave task entering iterate: " + i);
+
+                    if (_break)
+                    {
+                        Logger.Log(Level.Info, "$$$$$$$$$$$$$$returning from slave task by clsoe event");
+                        _stoped = true;
+                        return null;
+                    }
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$slave task 1");
+                    broadcastTime.Start();
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$slave task 2");
+
+                    // Receive n from Master Task
+                    int n = _broadcastReceiver.Receive();
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$slave task 3");
+                    broadcastTime.Stop();
+
+                    Logger.Log(Level.Info, "Calculating TriangleNumber({0}) on slave task...", n);
+
+                    // Calculate the nth Triangle number and send it back to driver
+                    int triangleNum = TriangleNumber(n);
+                    Logger.Log(Level.Info, "Sending sum: {0} on iteration {1}.", triangleNum, i);
+
+                    reduceTime.Start();
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$slave task 4");
+                    _triangleNumberSender.Send(triangleNum);
+                    Logger.Log(Level.Info, "$$$$$$$$$$$$$$slave task 5");
+                    reduceTime.Stop();
+
+                    if (i >= 1)
+                    {
+                        var msg = string.Format("Average time (milliseconds) taken for broadcast: {0} and reduce: {1}",
                             broadcastTime.ElapsedMilliseconds / ((double)i),
                             reduceTime.ElapsedMilliseconds / ((double)i));
-                    Logger.Log(Level.Info, msg);
+                        Logger.Log(Level.Info, msg);
+                    }
                 }
             }
+            catch (SystemException e)
+            {
+                Logger.Log(Level.Error, "#######################SlaveTask, SystemException." + e);
+                throw;
+            }
+            catch (Exception e)
+            {
+                Logger.Log(Level.Error, "#######################SlaveTask, Exception" + e);
+                throw;
+            }
+            finally
+            {
+                Logger.Log(Level.Info, "#######################SlaveTask exited");
+            }
 
+            _stoped = true;
             return null;
         }
 
@@ -92,6 +128,27 @@ namespace Org.Apache.REEF.Network.Examples.GroupCommunication.BroadcastReduceDri
         private int TriangleNumber(int n)
         {
             return Enumerable.Range(1, n).Sum();
+        }
+
+        public void OnNext(ICloseEvent value)
+        {
+            Logger.Log(Level.Info, "#######################SlaveTask ICloseEvent");
+            _break = true;
+            Thread.Sleep(500);
+            if (!_stoped)
+            {
+                throw new SystemException("Kille by driver.");
+            }
+        }
+
+        public void OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnCompleted()
+        {
+            throw new NotImplementedException();
         }
     }
 }
