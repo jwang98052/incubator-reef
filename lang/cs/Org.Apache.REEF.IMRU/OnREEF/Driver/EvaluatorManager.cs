@@ -47,7 +47,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         private readonly IEvaluatorRequestor _evaluatorRequestor;
         private string _masterEvaluatorId;
 
-        private readonly EvaluatorSpecification _updateEvaluatorSpecification;
+        private readonly EvaluatorSpecification _masterEvaluatorSpecification;
         private readonly EvaluatorSpecification _mapperEvaluatorSpecification;
 
         /// <summary>
@@ -56,39 +56,39 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="totalEvaluators"></param>
         /// <param name="allowedNumberOfEvaluatorFailures"></param>
         /// <param name="evaluatorRequestor"></param>
-        /// <param name="updateEvaluatorSpecification"></param>
+        /// <param name="masterEvaluatorSpecification"></param>
         /// <param name="mapperEvaluatorSpecification"></param>
         internal EvaluatorManager(
             int totalEvaluators,
             int allowedNumberOfEvaluatorFailures,
             IEvaluatorRequestor evaluatorRequestor,
-            EvaluatorSpecification updateEvaluatorSpecification,
+            EvaluatorSpecification masterEvaluatorSpecification,
             EvaluatorSpecification mapperEvaluatorSpecification)
         {
             _totalExpectedEvaluators = totalEvaluators;
             _allowedNumberOfEvaluatorFailures = allowedNumberOfEvaluatorFailures;
             _evaluatorRequestor = evaluatorRequestor;
-            _updateEvaluatorSpecification = updateEvaluatorSpecification;
+            _masterEvaluatorSpecification = masterEvaluatorSpecification;
             _mapperEvaluatorSpecification = mapperEvaluatorSpecification;
         }
 
         /// <summary>
         /// Request update/master Evaluator from resource manager
         /// </summary>
-        internal void RequestUpdateEvaluator()
+        internal void RequestMasterEvaluator()
         {
             _evaluatorRequestor.Submit(
                 _evaluatorRequestor.NewBuilder()
-                    .SetCores(_updateEvaluatorSpecification.Core)
-                    .SetMegabytes(_updateEvaluatorSpecification.Megabytes)
+                    .SetCores(_masterEvaluatorSpecification.Core)
+                    .SetMegabytes(_masterEvaluatorSpecification.Megabytes)
                     .SetNumber(1)
                     .SetEvaluatorBatchId(MasterBatchId + _masterBatchIdSquenceNumber)
                     .Build());
 
             var message = string.Format(CultureInfo.InvariantCulture,
                 "Submitted master evaluator with core [{0}], memory [{1}] and batch id [{2}].",
-                _updateEvaluatorSpecification.Core,
-                _updateEvaluatorSpecification.Megabytes,
+                _masterEvaluatorSpecification.Core,
+                _masterEvaluatorSpecification.Megabytes,
                 MasterBatchId + _masterBatchIdSquenceNumber);
             Logger.Log(Level.Info, message);
 
@@ -96,10 +96,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         }
 
         /// <summary>
-        /// Request map evaluators from resource manager
+        /// Request mapper evaluators from resource manager
         /// </summary>
         /// <param name="numEvaluators">Number of evaluators to request</param>
-        internal void RequestMapEvaluators(int numEvaluators)
+        internal void RequestMapperEvaluators(int numEvaluators)
         {
             _evaluatorRequestor.Submit(
                 _evaluatorRequestor.NewBuilder()

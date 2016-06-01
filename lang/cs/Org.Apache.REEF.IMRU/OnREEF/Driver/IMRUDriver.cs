@@ -20,7 +20,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Runtime.InteropServices;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.Driver.Context;
@@ -65,7 +64,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         IObserver<IFailedContext>,
         IObserver<IFailedTask>,
         IObserver<IRunningTask>,
-////        IObserver<IDictionary<string, IActiveContext>>
         IObserver<int>
     {
         private static readonly Logger Logger =
@@ -118,7 +116,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <summary>
         /// It records the number of retry for the recoveries. 
         /// </summary>
-        private int _numberOfRetryForFaultTolerant = 0;
+        private int _numberOfRetryForFaultTolerant = 1;
 
         [Inject]
         private IMRUDriver(IPartitionedInputDataSet dataSet,
@@ -178,11 +176,11 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <summary>
         /// IAllocatedEvaluator handler. It will take the following action based on the system state:
         /// Case WaitingForEvaluator
-        ///    Add Evaluator to the Evaluator List
+        ///    Add Evaluator to the Evaluator Manager
         ///    submit Context and Services
         /// Case Fail
         ///    Do nothing. This is because the code that sets system Fail has executed FailedAction. It has shut down all the allocated evaluators/contexts. 
-        ///    If a new IAllocatedEvaluator comes after it, we should not to submit anything. No need to take any action either. 
+        ///    If a new IAllocatedEvaluator comes after it, we should not submit anything so that the evaluator is returned.
         /// Other cases - not expected
         /// </summary>
         /// <param name="allocatedEvaluator">The allocated evaluator</param>
@@ -209,7 +207,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
         /// <summary>
         /// Gets context and service configuration for evaluator depending
-        /// on whether it is for update function or for map function.
+        /// on whether it is for update/master function or for mapper function.
         /// Then submits Context and Service with the corresponding configuration
         /// </summary>
         /// <param name="allocatedEvaluator"></param>
@@ -238,7 +236,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// IActiveContext handler. It will take the following actions based on the system state:
         /// Case WaitingForEvaluator:
         ///    Adds Active Context to Active Context Manager
-        ///    If the number of contexts reach to the total expected number, triggers Submit Tasks Action in ActiveContextManager
         /// Case Fail:
         ///    Closes the ActiveContext
         /// Other cases - not expected
@@ -272,13 +269,12 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// It changes the system state then calls SubmitTasks().
         /// </summary>
         /// <param name="value"></param>
-////        public void OnNext(IDictionary<string, IActiveContext> value)
         public void OnNext(int value)
         {
             Logger.Log(Level.Info, string.Format("Received event from ActiveContextManager with NumberOfActiveContexts:" + value));
             lock (_lock)
             {
-                //// Change the system state to SubmittingTasks
+                // Change the system state to SubmittingTasks
                 _systemState.MoveNext(SystemStateEvent.AllContextsAreReady);
                 SubmitTasks();
             }
@@ -308,30 +304,18 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             var taskIdAndContextMapping = new Dictionary<string, IActiveContext>();
             foreach (var activeContext in _contextManager.ActiveContexts)
             {
-                if (_evaluatorManager.IsMasterEvaluatorId(activeContext.EvaluatorId))
-                {
-                    commGroup.AddTask(_groupCommDriver.MasterTaskId);
-                    taskIdAndContextMapping.Add(_groupCommDriver.MasterTaskId, activeContext);
-                }
-                else
-                {
-                    var taskId = GetTaskIdByEvaluatorId(activeContext.EvaluatorId);
-                    commGroup.AddTask(taskId);
-                    taskIdAndContextMapping.Add(taskId, activeContext);
-                }
+                var taskId = _evaluatorManager.IsMasterEvaluatorId(activeContext.EvaluatorId) ?
+                    _groupCommDriver.MasterTaskId :
+                    GetMapperTaskIdByEvaluatorId(activeContext.EvaluatorId);
+                commGroup.AddTask(taskId);
+                taskIdAndContextMapping.Add(taskId, activeContext);
             }
 
             foreach (var mapping in taskIdAndContextMapping)
             {
-                IConfiguration taskConfig;
-                if (_evaluatorManager.IsMasterEvaluatorId(mapping.Value.EvaluatorId))
-                {
-                    taskConfig = GetUpdateTaskConfiguration(mapping.Key);
-                }
-                else
-                {
-                    taskConfig = GetMapTaskConfiguration(mapping.Value, mapping.Key);
-                }
+                var taskConfig = _evaluatorManager.IsMasterEvaluatorId(mapping.Value.EvaluatorId) ? 
+                    GetMasterTaskConfiguration(mapping.Key) :
+                    GetMapperTaskConfiguration(mapping.Value, mapping.Key);
                 var groupCommTaskConfiguration = _groupCommDriver.GetGroupCommTaskConfiguration(mapping.Key);
                 var mergedTaskConf = Configurations.Merge(taskConfig, groupCommTaskConfiguration);
                 _taskManager.AddTask(mapping.Key, mergedTaskConf, mapping.Value);
@@ -347,9 +331,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         ///     Add it to RunningTasks and set task state to TaskRunning
         ///     When all the tasks are running, change system state to TasksRunning
         /// Case ShuttingDown/Fail
-        ///     Change the task state to TaskRunning
-        ///     Send command to close the task itself
-        ///     Change the task state to TaskWaitingForClose
+        ///     Call TaskManager to record RunningTask during SystemFailure
         /// Other cases - not expected 
         /// </summary>
         /// <param name="runningTask"></param>
@@ -373,7 +355,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                         _taskManager.RecordRunningTaskDuringSystemFailure(runningTask, TaskManager.CloseTaskByDriver);
                         break;
                     default:
-                        UnexpectedState(runningTask.Id, "IRuningTask");
+                        UnexpectedState(runningTask.Id, "IRunningTask");
                         break;
                 }
             }
@@ -384,12 +366,11 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <summary>
         /// ICompletedTask handler. It is called when a task is completed. The following action will be taken based on the System State:
         /// Case TasksRunning
-        ///     Updates task states to TaskCompleted
+        ///     Updates task state to TaskCompleted
         ///     If all tasks are completed, sets system state to TasksCompleted and then go to Done action
         /// Case ShuttingDown
-        ///     Update task states to TaskCompleted
-        ///     if RecoveryCondition == true, Start Action
-        ///     else change system state to FAIL, take FAIL action
+        ///     Updates task state to TaskCompleted
+        ///     Try to recover
         /// Other cases - not expected 
         /// </summary>
         /// <param name="completedTask">The link to the completed task</param>
@@ -411,9 +392,9 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                         }
                         break;
                     case SystemState.ShuttingDown:
-                        //// The task might be in running state or waiting for close, set it to complete anyway to make its state final
+                        // The task might be in running state or waiting for close, set it to complete anyway to make its state final
                         _taskManager.RecordCompletedTask(completedTask);
-                        CheckRecovery();
+                        TryRecovery();
                         break;
                     default:
                         UnexpectedState(completedTask.Id, "ICompletedTask");
@@ -428,7 +409,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// IFailedEvaluator handler. It specifies what to do when an evaluator fails.
         /// If we get all completed tasks then ignore the failure. Otherwise, take the following actions based on the system state: 
         /// Case WaitingForEvaluator
-        ///     This happens in the middle of submitting contexts. We just need to simply remove the failed evaluator 
+        ///     This happens in the middle of submitting contexts. We just need to remove the failed evaluator 
         ///     from EvaluatorManager and remove associated active context, if any, from ActiveContextManager
         ///     then checks if the system is recoverable. If yes, request another Evaluator 
         ///     If not recoverable, set system state to Fail then execute Fail action
@@ -438,13 +419,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         ///     Removes Evaluator and associated context from EvaluatorManager and ActiveContextManager
         ///     Removes associated task from running task if it was running and change the task state to TaskFailedByEvaluatorFailure
         ///     Closes all the other running tasks
-        ///     Checks for recovery in case it is the last failure received
+        ///     Try to recover in case it is the last failure received
         /// Case ShuttingDown
         ///     This happens when we have received either FailedEvaluator or FailedTask, some tasks are running some are in closing.
         ///     Removes Evaluator and associated context from EvaluatorManager and ActiveContextManager
         ///     Removes associated task from running task if it was running, changes the task state to ClosedTask if it was waiting for close
         ///     otherwise changes the task state to FailedTaskEvaluatorError
-        ///     Checks for recovery in case it is the last failure received
+        ///     Try to recover in case it is the last failure received
         /// Other cases - not expected 
         /// </summary>
         /// <param name="failedEvaluator"></param>
@@ -454,10 +435,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             {
                 if (_taskManager.AreAllTasksCompleted())
                 {
-                    Logger.Log(Level.Verbose, string.Format("Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", failedEvaluator.Id));
+                    Logger.Log(Level.Verbose, "Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", failedEvaluator.Id);
                     return;
                 }
-                Logger.Log(Level.Info, string.Format("Evaluator with Id: {0} failed with Exception: {1}", failedEvaluator.Id, failedEvaluator.EvaluatorException));
+                Logger.Log(Level.Info, "Evaluator with Id: {0} failed with Exception: {1}", failedEvaluator.Id, failedEvaluator.EvaluatorException);
 
                 var isMaster = _evaluatorManager.IsMasterEvaluatorId(failedEvaluator.Id);
                 _evaluatorManager.RecordFailedEvaluator(failedEvaluator.Id);
@@ -471,13 +452,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                             if (isMaster)
                             {
                                 Logger.Log(Level.Info, "Requesting a master Evaluator.");
-                                _evaluatorManager.RequestUpdateEvaluator();
+                                _evaluatorManager.RequestMasterEvaluator();
                             }
                             else
                             {
                                 _serviceAndContextConfigurationProvider.RemoveEvaluatorIdFromPartitionIdProvider(failedEvaluator.Id);
                                 Logger.Log(Level.Info, "Requesting mapper Evaluators.");
-                                _evaluatorManager.RequestMapEvaluators(1);
+                                _evaluatorManager.RequestMapperEvaluators(1);
                             }
                         }
                         else
@@ -490,29 +471,29 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
                     case SystemState.SubmittingTasks:
                     case SystemState.TasksRunning:
-                        //// set system state to ShuttingDown
+                        // set system state to ShuttingDown
                         _systemState.MoveNext(SystemStateEvent.FailedNode);
                         _taskManager.RecordTaskFailWhenReceivingFailedEvaluator(failedEvaluator);
                         _taskManager.CloseAllRunningTasks(TaskManager.CloseTaskByDriver);
-
-                        //// Push evaluator id back to PartitionIdProvider if it is not master
+                        
+                        // Push evaluator id back to PartitionIdProvider if it is not master
                         if (!isMaster)
                         {
                             _serviceAndContextConfigurationProvider.RemoveEvaluatorIdFromPartitionIdProvider(failedEvaluator.Id);
                         }
 
-                        CheckRecovery();
+                        TryRecovery();
                         break;
 
                     case SystemState.ShuttingDown:
                         _taskManager.RecordTaskFailWhenReceivingFailedEvaluator(failedEvaluator);
 
-                        //// Push evaluator id back to PartitionIdProvider if it is not master
+                        // Push evaluator id back to PartitionIdProvider if it is not master
                         if (!isMaster)
                         {
                             _serviceAndContextConfigurationProvider.RemoveEvaluatorIdFromPartitionIdProvider(failedEvaluator.Id);
                         }
-                        CheckRecovery();
+                        TryRecovery();
                         break;
 
                     default:
@@ -536,8 +517,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             {
                 if (_taskManager.AreAllTasksCompleted())
                 {
-                    Logger.Log(Level.Info,
-                        string.Format("Context with Id: {0} failed but IMRU tasks are completed. So ignoring.", failedContext.Id));
+                    Logger.Log(Level.Info, "Context with Id: {0} failed but IMRU tasks are completed. So ignoring.", failedContext.Id);
                     return;
                 }
 
@@ -554,15 +534,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// Case SubmittingTasks/TasksRunning
         ///     This is the first failure received
         ///     Changes the system state to ShuttingDown
-        ///     Removes the task from Running Tasks if the task is running
-        ///     Updates task state based on the error message
+        ///     Record failed task in TaskManager
         ///     Closes all the other running tasks and set their state to TaskWaitingForClose
-        ///     Check recovery
+        ///     Try to recover
         /// Case ShuttingDown
         ///     This happens when we have received either FailedEvaluator or FailedTask, some tasks are running some are in closing.
-        ///     If the task is in TaskWaitingForClose, change its state to TaskClosedByDriver
-        ///     otherwise, as long as the task state is not TaskFailedByEvaluatorFailure, set task fail state based on the failedTask Message
-        ///     Check recovery
+        ///     Record failed task in TaskManager.
+        ///     Try to recover
         /// Other cases - not expected 
         /// </summary>
         /// <param name="failedTask"></param>
@@ -572,27 +550,26 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             {
                 if (_taskManager.AreAllTasksCompleted())
                 {
-                    Logger.Log(Level.Info,
-                        string.Format("Task with Id: {0} failed but IMRU task is completed. So ignoring.", failedTask.Id));
+                    Logger.Log(Level.Info, "Task with Id: {0} failed but IMRU task is completed. So ignoring.", failedTask.Id);
                     return;
                 }
 
-                Logger.Log(Level.Info, string.Format("Task with Id: {0} failed with message: {1}", failedTask.Id, failedTask.Message));
+                Logger.Log(Level.Info, "Task with Id: {0} failed with message: {1}", failedTask.Id, failedTask.Message);
 
                 switch (_systemState.CurrentState)
                 {
                     case SystemState.SubmittingTasks:
                     case SystemState.TasksRunning:
-                        //// set system state to ShuttingDown
+                        // set system state to ShuttingDown
                         _systemState.MoveNext(SystemStateEvent.FailedNode);
                         _taskManager.RecordFailedTaskDuringRunningOrSubmissionState(failedTask);
                         _taskManager.CloseAllRunningTasks(TaskManager.CloseTaskByDriver);
-                        CheckRecovery();
+                        TryRecovery();
                         break;
 
                     case SystemState.ShuttingDown:
                         _taskManager.RecordFailedTaskDuringSystemShuttingDownState(failedTask);
-                        CheckRecovery();
+                        TryRecovery();
                         break;
 
                     default:
@@ -625,7 +602,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// If all the tasks are in final state, if the system is recoverable, start recovery
         /// else, change the system state to Fail then take Fail action
         /// </summary>
-        private void CheckRecovery()
+        private void TryRecovery()
         {
             if (_taskManager.AllInFinalState())
             {
@@ -643,7 +620,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             }
         }
 
-        private string GetTaskIdByEvaluatorId(string evaluatorId)
+        private string GetMapperTaskIdByEvaluatorId(string evaluatorId)
         {
             return string.Format("{0}-{1}-Version0",
                 IMRUConstants.MapTaskPrefix,
@@ -661,7 +638,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         }
 
         /// <summary>
-        /// Shuts down evaluators once all completed task messages are received
+        /// Shuts down evaluators
         /// </summary>
         private void ShutDownAllEvaluators()
         {
@@ -673,8 +650,8 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         }
 
         /// <summary>
-        /// Resets NumberOfFailedEvaluator and numberOfAppErrors
-        /// Changes state to WaitingForEvaluator
+        /// Resets Failed Evaluators
+        /// Changes state to WaitingForEvaluator if it is in recovery.
         /// If master evaluator is missing, request master evaluator
         /// Based on the count of failed evaluators, requests missing mapper evaluators
         /// </summary>
@@ -688,11 +665,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     Logger.Log(Level.Info, string.Format("Start recovery with _numberOfRetryForFaultTolerant:" + _numberOfRetryForFaultTolerant));
                 }
 
-                var requestMaster = _isFirstTry || _evaluatorManager.IsMasterEvaluatorFailed();
-                var mappersToRequest = _isFirstTry ? _totalMappers : _evaluatorManager.NumberofFailedMappers();
-
-                _evaluatorManager.ResetFailedEvaluators();
-
                 if (_isFirstTry)
                 {
                     _systemState = new SystemStateMachine();
@@ -702,32 +674,35 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     _systemState.MoveNext(SystemStateEvent.Recover);
                 }
 
-                // There is no evaluator failure, only Task failures.
+                var requestMaster = _isFirstTry || _evaluatorManager.IsMasterEvaluatorFailed();
+                var mappersToRequest = _isFirstTry ? _totalMappers : _evaluatorManager.NumberofFailedMappers();
+
+                _evaluatorManager.ResetFailedEvaluators();
+
                 if (!requestMaster && mappersToRequest == 0)
                 {
-                    Logger.Log(Level.Info, "$$$$$$$$$$There is no failed Evaluator in this recovery.");
+                    Logger.Log(Level.Info, "There is no failed Evaluator in this recovery.");
                     if (_contextManager.AreAllContextsReceived)
                     {
                         OnNext(_contextManager.NumberOfActiveContexts);
-                        ////_systemState.MoveNext(SystemStateEvent.AllContextsAreReady);
-                        ////SubmitTasks();
                     }
                     else
                     {
                         Exceptions.Throw(new IMRUSystemException("In recovery, there is no Failed evaluator but not all the contexts are received"), Logger);
                     }
+                    return;
                 }
 
                 if (requestMaster)
                 {
                     Logger.Log(Level.Info, "Requesting a master Evaluator.");
-                    _evaluatorManager.RequestUpdateEvaluator();
+                    _evaluatorManager.RequestMasterEvaluator();
                 }
 
                 if (mappersToRequest > 0)
                 {
-                    Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "Requesting {0} map Evaluators.", mappersToRequest));
-                    _evaluatorManager.RequestMapEvaluators(mappersToRequest);
+                    Logger.Log(Level.Info, "Requesting {0} map Evaluators.", mappersToRequest);
+                    _evaluatorManager.RequestMapperEvaluators(mappersToRequest);
                 }
             }
         }
@@ -750,7 +725,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="activeContext">Active context to which task needs to be submitted</param>
         /// <param name="taskId">Task Id</param>
         /// <returns>Map task configuration</returns>
-        private IConfiguration GetMapTaskConfiguration(IActiveContext activeContext, string taskId)
+        private IConfiguration GetMapperTaskConfiguration(IActiveContext activeContext, string taskId)
         {
             IConfiguration mapSpecificConfig;
 
@@ -780,7 +755,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// Merge configurations of all the inputs to the UpdateTaskHost.
         /// </summary>
         /// <returns>Update task configuration</returns>
-        private IConfiguration GetUpdateTaskConfiguration(string taskId)
+        private IConfiguration GetMasterTaskConfiguration(string taskId)
         {
             var partialTaskConf =
                 TangFactory.GetTang()
@@ -848,6 +823,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             var mapOutputPipelineDataConverterConfig = _configurationManager.MapOutputPipelineDataConverterConfiguration;
             var mapInputPipelineDataConverterConfig = _configurationManager.MapInputPipelineDataConverterConfiguration;
 
+            // TODO check the specific exception type 
             try
             {
                 TangFactory.GetTang()
@@ -862,7 +838,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                             GenericType<MapInputwithControlMessagePipelineDataConverter<TMapInput>>.Class)
                         .Build();
             }
-            catch (Exception)
+            catch (Exception) 
             {
                 mapInputPipelineDataConverterConfig = TangFactory.GetTang()
                     .NewConfigurationBuilder()
@@ -877,7 +853,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                 TangFactory.GetTang()
                     .NewInjector(mapOutputPipelineDataConverterConfig)
                     .GetInstance<IPipelineDataConverter<TMapOutput>>();
-            }
+            }            
             catch (Exception)
             {
                 mapOutputPipelineDataConverterConfig =

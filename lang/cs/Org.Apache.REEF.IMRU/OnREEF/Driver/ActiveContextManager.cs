@@ -37,7 +37,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         private static readonly Logger Logger = Logger.GetLogger(typeof(ActiveContextManager));
         private readonly IDictionary<string, IActiveContext> _activeContexts = new Dictionary<string, IActiveContext>();
         private readonly int _totalExpectedContexts;
-        ////private IObserver<IDictionary<string, IActiveContext>> _activeContextObserver;
         private IObserver<int> _activeContextObserver;
 
         /// <summary>

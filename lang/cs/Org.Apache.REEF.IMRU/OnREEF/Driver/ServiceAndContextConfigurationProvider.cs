@@ -99,7 +99,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
             if (!_partitionIdProvider.ContainsKey(evaluatorId))
             {
-                string msg = string.Format(CultureInfo.InvariantCulture, "Partition descriptor for evaluator:{0} is not present in the mapping", evaluatorId);
+                var msg = string.Format(CultureInfo.InvariantCulture, "Partition descriptor for evaluator:{0} is not present in the mapping", evaluatorId);
                 Exceptions.Throw(new IMRUSystemException(msg), Logger);
             }
 
@@ -121,7 +121,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
 
             if (_partitionIdProvider.ContainsKey(evaluatorId))
             {
-                string msg =
+                var msg =
                     string.Format(
                         CultureInfo.InvariantCulture,
                         "Evaluator Id:{0} already present in configuration cache, they have to be unique",
@@ -140,7 +140,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             }
             catch (Exception e)
             {
-                string msg = string.Format(CultureInfo.InvariantCulture, "Error while trying to access partition descriptor:{0} from dataset",
+                var msg = string.Format(CultureInfo.InvariantCulture, "Error while trying to access partition descriptor:{0} from dataset",
                     _partitionIdProvider[evaluatorId]);
                 Exceptions.Throw(e, msg, Logger);
                 return null;
