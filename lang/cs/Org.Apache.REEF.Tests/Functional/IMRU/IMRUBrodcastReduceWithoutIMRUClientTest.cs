@@ -26,12 +26,15 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
     [Collection("FunctionalTests")]
     public class IMRUBrodcastReduceWithoutIMRUClientTest : IMRUBrodcastReduceTestBase
     {
+        /// <summary>
+        /// This test is for the normal scenarios of IMRUDriver and IMRUTasks on local runtime
+        /// </summary>
         [Fact]
         public void TestWithHandlersInIMRUDriverOnLocalRuntime()
         {
             int chunkSize = 2;
-            int dims = 10;
-            int iterations = 10;
+            int dims = 100;
+            int iterations = 200;
             int mapperMemory = 5120;
             int updateTaskMemory = 5120;
             int numTasks = 4;
@@ -41,6 +44,9 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
             CleanUp(testFolder);
         }
 
+        /// <summary>
+        /// This test is for the normal scenarios of IMRUDriver and IMRUTasks on yarn
+        /// </summary>
         [Fact(Skip = "Requires Yarn")]
         public void TestWithHandlersInIMRUDriverOnYarn()
         {
@@ -50,8 +56,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
             int mapperMemory = 5120;
             int updateTaskMemory = 5120;
             int numTasks = 4;
-            string testFolder = DefaultRuntimeFolder + TestId + "Yarn";
-            TestBroadCastAndReduce(false, numTasks, chunkSize, dims, iterations, mapperMemory, updateTaskMemory, testFolder);
+            TestBroadCastAndReduce(false, numTasks, chunkSize, dims, iterations, mapperMemory, updateTaskMemory);
         }
 
         /// <summary>
@@ -80,8 +85,8 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
                 .Set(REEF.Driver.DriverConfiguration.OnTaskFailed,
                      GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
                 .Set(REEF.Driver.DriverConfiguration.OnTaskRunning,
-                        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
-                .Set(REEF.Driver.DriverConfiguration.CustomTraceLevel, TraceLevel.Verbose.ToString())
+                    GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+                .Set(REEF.Driver.DriverConfiguration.CustomTraceLevel, TraceLevel.Info.ToString())
                 .Build();
         }
     }

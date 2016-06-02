@@ -45,6 +45,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
     public abstract class IMRUBrodcastReduceTestBase : ReefFunctionalTest
     {
         protected static readonly Logger Logger = Logger.GetLogger(typeof(IMRUBrodcastReduceTestBase));
+        private const string IMRUJobName = "IMRUBroadcastReduce";
 
         /// <summary>
         /// Abstract method for subclass to override it to provide configurations for driver handlers 
@@ -57,7 +58,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         protected abstract IConfiguration DriverEventHandlerConfigurations<TMapInput, TMapOutput, TResult, TPartitionType>();
 
         /// <summary>
-        /// This method provide a default way to call TestRun. 
+        /// This method provides a default way to call TestRun. 
         /// It gets driver configurations from base class, including the DriverEventHandlerConfigurations defined by subclass,
         /// then calls TestRun for running the test.
         /// Subclass can override it if they have different parameters for the test
@@ -70,10 +71,17 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         /// <param name="mapperMemory"></param>
         /// <param name="updateTaskMemory"></param>
         /// <param name="testFolder"></param>
-        protected void TestBroadCastAndReduce(bool runOnYarn, int numTasks, int chunkSize, int dims, int iterations, int mapperMemory, int updateTaskMemory, string testFolder)
+        protected void TestBroadCastAndReduce(bool runOnYarn,
+            int numTasks,
+            int chunkSize,
+            int dims,
+            int iterations,
+            int mapperMemory,
+            int updateTaskMemory,
+            string testFolder = DefaultRuntimeFolder)
         {
             string runPlatform = runOnYarn ? "yarn" : "local";
-            TestRun(DriverConfigurations<int[], int[], int[], Stream>(
+            TestRun(DriverConfiguration<int[], int[], int[], Stream>(
                 CreateIMRUJobDefinitionBuilder(numTasks - 1, chunkSize, iterations, dims, mapperMemory, updateTaskMemory),
                 DriverEventHandlerConfigurations<int[], int[], int[], Stream>()),
                 typeof(BroadcastReduceDriver),
@@ -84,7 +92,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         }
 
         /// <summary>
-        /// Build driver configurations
+        /// Build driver configuration
         /// </summary>
         /// <typeparam name="TMapInput"></typeparam>
         /// <typeparam name="TMapOutput"></typeparam>
@@ -93,7 +101,9 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         /// <param name="jobDefinition"></param>
         /// <param name="driverHandlerConfig"></param>
         /// <returns></returns>
-        protected static IConfiguration DriverConfigurations<TMapInput, TMapOutput, TResult, TPartitionType>(IMRUJobDefinition jobDefinition, IConfiguration driverHandlerConfig)
+        protected IConfiguration DriverConfiguration<TMapInput, TMapOutput, TResult, TPartitionType>(
+            IMRUJobDefinition jobDefinition,
+            IConfiguration driverHandlerConfig)
         {
             string driverId = string.Format("IMRU-{0}-Driver", jobDefinition.JobName);
             IConfiguration overallPerMapConfig = null;
@@ -111,7 +121,8 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
             var imruDriverConfiguration = TangFactory.GetTang().NewConfigurationBuilder(new[]
             {
                 driverHandlerConfig,
-                CreateGroupCommunicationConfigurations<TMapInput, TMapOutput, TResult, TPartitionType>(jobDefinition, driverId),
+                CreateGroupCommunicationConfiguration<TMapInput, TMapOutput, TResult, TPartitionType>(jobDefinition.NumberOfMappers + 1,
+                    driverId),
                 jobDefinition.PartitionedDatasetConfiguration,
                 overallPerMapConfig
             })
@@ -146,26 +157,25 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         }
 
         /// <summary>
-        /// Create group communication configurations 
+        /// Create group communication configuration
         /// </summary>
         /// <typeparam name="TMapInput"></typeparam>
         /// <typeparam name="TMapOutput"></typeparam>
         /// <typeparam name="TResult"></typeparam>
         /// <typeparam name="TPartitionType"></typeparam>
-        /// <param name="jobDefinition"></param>
+        /// <param name="numberOfTasks"></param>
         /// <param name="driverId"></param>
         /// <returns></returns>
-        protected static IConfiguration CreateGroupCommunicationConfigurations<TMapInput, TMapOutput, TResult, TPartitionType>(IMRUJobDefinition jobDefinition, string driverId)
+        protected IConfiguration CreateGroupCommunicationConfiguration<TMapInput, TMapOutput, TResult, TPartitionType>(
+            int numberOfTasks,
+            string driverId)
         {
             return TangFactory.GetTang().NewConfigurationBuilder()
                 .BindStringNamedParam<GroupCommConfigurationOptions.DriverId>(driverId)
                 .BindStringNamedParam<GroupCommConfigurationOptions.MasterTaskId>(IMRUConstants.UpdateTaskName)
                 .BindStringNamedParam<GroupCommConfigurationOptions.GroupName>(IMRUConstants.CommunicationGroupName)
-                .BindIntNamedParam<GroupCommConfigurationOptions.FanOut>(
-                    IMRUConstants.TreeFanout.ToString(CultureInfo.InvariantCulture)
-                        .ToString(CultureInfo.InvariantCulture))
-                .BindIntNamedParam<GroupCommConfigurationOptions.NumberOfTasks>(
-                    (jobDefinition.NumberOfMappers + 1).ToString(CultureInfo.InvariantCulture))
+                .BindIntNamedParam<GroupCommConfigurationOptions.FanOut>(IMRUConstants.TreeFanout.ToString(CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture))
+                .BindIntNamedParam<GroupCommConfigurationOptions.NumberOfTasks>(numberOfTasks.ToString(CultureInfo.InvariantCulture))
                 .BindImplementation(GenericType<IGroupCommDriver>.Class, GenericType<GroupCommDriver>.Class)
                 .Build();
         }
@@ -180,12 +190,15 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         /// <param name="mapperMemory"></param>
         /// <param name="updateTaskMemory"></param>
         /// <returns></returns>
-        protected static IMRUJobDefinition CreateIMRUJobDefinitionBuilder(int numberofMappers, int chunkSize, int numIterations, int dim, int mapperMemory, int updateTaskMemory)
+        protected IMRUJobDefinition CreateIMRUJobDefinitionBuilder(int numberofMappers,
+            int chunkSize,
+            int numIterations,
+            int dim,
+            int mapperMemory,
+            int updateTaskMemory)
         {
             var updateFunctionConfig =
-                TangFactory.GetTang().NewConfigurationBuilder(IMRUUpdateConfiguration<int[], int[], int[]>.ConfigurationModule
-                    .Set(IMRUUpdateConfiguration<int[], int[], int[]>.UpdateFunction,
-                        GenericType<BroadcastSenderReduceReceiverUpdateFunction>.Class).Build())
+                TangFactory.GetTang().NewConfigurationBuilder(BuildUpdateFunctionConfig())
                     .BindNamedParameter(typeof(BroadcastReduceConfiguration.NumberOfIterations),
                         numIterations.ToString(CultureInfo.InvariantCulture))
                     .BindNamedParameter(typeof(BroadcastReduceConfiguration.Dimensions),
@@ -194,50 +207,105 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
                         numberofMappers.ToString(CultureInfo.InvariantCulture))
                     .Build();
 
-            var dataConverterConfig1 =
-                TangFactory.GetTang()
-                    .NewConfigurationBuilder(IMRUPipelineDataConverterConfiguration<int[]>.ConfigurationModule
-                        .Set(IMRUPipelineDataConverterConfiguration<int[]>.MapInputPiplelineDataConverter,
-                            GenericType<PipelineIntDataConverter>.Class).Build())
-                    .BindNamedParameter(typeof(BroadcastReduceConfiguration.ChunkSize),
-                        chunkSize.ToString(CultureInfo.InvariantCulture))
-                    .Build();
-
-            var dataConverterConfig2 =
-                TangFactory.GetTang()
-                    .NewConfigurationBuilder(IMRUPipelineDataConverterConfiguration<int[]>.ConfigurationModule
-                        .Set(IMRUPipelineDataConverterConfiguration<int[]>.MapInputPiplelineDataConverter,
-                            GenericType<PipelineIntDataConverter>.Class).Build())
-                    .BindNamedParameter(typeof(BroadcastReduceConfiguration.ChunkSize),
-                        chunkSize.ToString(CultureInfo.InvariantCulture))
-                    .Build();
-
             return new IMRUJobDefinitionBuilder()
-                .SetMapFunctionConfiguration(IMRUMapConfiguration<int[], int[]>.ConfigurationModule
-                    .Set(IMRUMapConfiguration<int[], int[]>.MapFunction,
-                        GenericType<BroadcastReceiverReduceSenderMapFunction>.Class)
-                    .Build())
+                .SetMapFunctionConfiguration(BuildMapperFunctionConfig())
                 .SetUpdateFunctionConfiguration(updateFunctionConfig)
-                .SetMapInputCodecConfiguration(IMRUCodecConfiguration<int[]>.ConfigurationModule
-                    .Set(IMRUCodecConfiguration<int[]>.Codec, GenericType<IntArrayStreamingCodec>.Class)
-                    .Build())
-                .SetUpdateFunctionCodecsConfiguration(IMRUCodecConfiguration<int[]>.ConfigurationModule
-                    .Set(IMRUCodecConfiguration<int[]>.Codec, GenericType<IntArrayStreamingCodec>.Class)
-                    .Build())
-                .SetReduceFunctionConfiguration(IMRUReduceFunctionConfiguration<int[]>.ConfigurationModule
-                    .Set(IMRUReduceFunctionConfiguration<int[]>.ReduceFunction,
-                        GenericType<IntArraySumReduceFunction>.Class)
-                    .Build())
-                .SetMapInputPipelineDataConverterConfiguration(dataConverterConfig1)
-                .SetMapOutputPipelineDataConverterConfiguration(dataConverterConfig2)
-                .SetPartitionedDatasetConfiguration(
-                    RandomInputDataConfiguration.ConfigurationModule.Set(
-                        RandomInputDataConfiguration.NumberOfPartitions,
-                        numberofMappers.ToString()).Build())
-                .SetJobName("IMRUBroadcastReduce")
+                .SetMapInputCodecConfiguration(BuildUpdateFunctionCodecsConfig())
+                .SetUpdateFunctionCodecsConfiguration(BuildUpdateFunctionCodecsConfig())
+                .SetReduceFunctionConfiguration(BuildReduceFunctionConfig())
+                .SetMapInputPipelineDataConverterConfiguration(BuildDataConverterConfig(chunkSize))
+                .SetMapOutputPipelineDataConverterConfiguration(BuildDataConverterConfig(chunkSize))
+                .SetPartitionedDatasetConfiguration(BuildPartitionedDatasetConfiguration(numberofMappers))
+                .SetJobName(IMRUJobName)
                 .SetNumberOfMappers(numberofMappers)
                 .SetMapperMemory(mapperMemory)
                 .SetUpdateTaskMemory(updateTaskMemory)
+                .Build();
+        }
+
+        /// <summary>
+        ///  Data Converter Configuration. Subclass can override it to have its own test Data Converter.
+        /// </summary>
+        /// <param name="chunkSize"></param>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildDataConverterConfig(int chunkSize)
+        {
+            return TangFactory.GetTang()
+                .NewConfigurationBuilder(IMRUPipelineDataConverterConfiguration<int[]>.ConfigurationModule
+                    .Set(IMRUPipelineDataConverterConfiguration<int[]>.MapInputPiplelineDataConverter,
+                        GenericType<PipelineIntDataConverter>.Class).Build())
+                .BindNamedParameter(typeof(BroadcastReduceConfiguration.ChunkSize),
+                    chunkSize.ToString(CultureInfo.InvariantCulture))
+                .Build();
+        }
+
+        /// <summary>
+        /// Mapper function configuration. Subclass can override it to have its own test function.
+        /// </summary>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildMapperFunctionConfig()
+        {
+            return IMRUMapConfiguration<int[], int[]>.ConfigurationModule
+                .Set(IMRUMapConfiguration<int[], int[]>.MapFunction,
+                    GenericType<BroadcastReceiverReduceSenderMapFunction>.Class)
+                .Build();
+        }
+
+        /// <summary>
+        /// Update function configuration. Subclass can override it to have its own test function.
+        /// </summary>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildUpdateFunctionConfig()
+        {
+            return IMRUUpdateConfiguration<int[], int[], int[]>.ConfigurationModule
+                .Set(IMRUUpdateConfiguration<int[], int[], int[]>.UpdateFunction,
+                    GenericType<BroadcastSenderReduceReceiverUpdateFunction>.Class)
+                .Build();
+        }
+
+        /// <summary>
+        /// Partition dataset configuration. Subclass can override it to have its own test dataset config
+        /// </summary>
+        /// <param name="numberofMappers"></param>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildPartitionedDatasetConfiguration(int numberofMappers)
+        {
+            return RandomInputDataConfiguration.ConfigurationModule.Set(
+                RandomInputDataConfiguration.NumberOfPartitions,
+                numberofMappers.ToString()).Build();
+        }
+
+        /// <summary>
+        /// Map Input Codec configuration. Subclass can override it to have its own test Codec.
+        /// </summary>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildMapInputCodecConfig()
+        {
+            return IMRUCodecConfiguration<int[]>.ConfigurationModule
+                .Set(IMRUCodecConfiguration<int[]>.Codec, GenericType<IntArrayStreamingCodec>.Class)
+                .Build();
+        }
+
+        /// <summary>
+        /// Update function Codec configuration. Subclass can override it to have its own test Codec.
+        /// </summary>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildUpdateFunctionCodecsConfig()
+        {
+            return IMRUCodecConfiguration<int[]>.ConfigurationModule
+                .Set(IMRUCodecConfiguration<int[]>.Codec, GenericType<IntArrayStreamingCodec>.Class)
+                .Build();
+        }
+
+        /// <summary>
+        /// Reduce function configuration. Subclass can override it to have its own test function.
+        /// </summary>
+        /// <returns></returns>
+        protected virtual IConfiguration BuildReduceFunctionConfig()
+        {
+            return IMRUReduceFunctionConfiguration<int[]>.ConfigurationModule
+                .Set(IMRUReduceFunctionConfiguration<int[]>.ReduceFunction,
+                    GenericType<IntArraySumReduceFunction>.Class)
                 .Build();
         }
     }

@@ -43,7 +43,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         /// This test is for running in local runtime
         /// It sends close event for all the running tasks.
         /// For tasks that can close properly after receiving the close event, the driver will get ICompletedTask event. 
-        /// For those tasks that cannot close properly after receiving the close event, they will throw exceptions
+        /// For tasks that cannot close properly after receiving the close event, they will throw exceptions
         /// and the driver will get IFailedTask event. 
         /// </summary>
         [Fact]
@@ -79,8 +79,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
             int mapperMemory = 5120;
             int updateTaskMemory = 5120;
             int numTasks = 4;
-            string testFolder = DefaultRuntimeFolder + TestId + "Yarn";
-            TestBroadCastAndReduce(true, numTasks, chunkSize, dims, iterations, mapperMemory, updateTaskMemory, testFolder);
+            TestBroadCastAndReduce(true, numTasks, chunkSize, dims, iterations, mapperMemory, updateTaskMemory);
         }
 
         /// <summary>
