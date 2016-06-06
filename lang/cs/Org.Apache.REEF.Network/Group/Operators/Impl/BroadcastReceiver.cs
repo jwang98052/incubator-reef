@@ -104,15 +104,11 @@ namespace Org.Apache.REEF.Network.Group.Operators.Impl
 
                 do
                 {
-                    Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()1 ");
                     message = _topology.ReceiveFromParent();
-                    Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()2 ");
 
                     if (_topology.HasChildren())
                     {
-                        Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()3 ");
                         _topology.SendToChildren(message, MessageType.Data);
-                        Logger.Log(Level.Info, "#######################BroadcastReceiver.Receive()4 ");
                     }
 
                     messageList.Add(message);

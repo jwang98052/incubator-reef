@@ -150,6 +150,7 @@ namespace Org.Apache.REEF.Network.NetworkService
         /// </summary>
         public void Dispose()
         {
+            Logger.Log(Level.Info, "-----------------------StreamingNetworkService.Dispose");
             NamingClient.Dispose();
             _remoteManager.Dispose();
 

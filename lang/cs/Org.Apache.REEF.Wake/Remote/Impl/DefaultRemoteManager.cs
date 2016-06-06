@@ -157,7 +157,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
 
             ProxyObserver remoteObserver;
             if (!_cachedClients.TryGetValue(remoteEndpoint, out remoteObserver))
-            {
+            {                
                 remoteObserver = CreateRemoteObserver(remoteEndpoint);
                 _cachedClients[remoteEndpoint] = remoteObserver;
             }

@@ -24,6 +24,7 @@ using Org.Apache.REEF.Network.NetworkService;
 using Org.Apache.REEF.Tang.Annotations;
 using Org.Apache.REEF.Tang.Formats;
 using Org.Apache.REEF.Tang.Interface;
+using Org.Apache.REEF.Utilities.Logging;
 using Org.Apache.REEF.Wake.Remote.Impl;
 
 namespace Org.Apache.REEF.Network.Group.Task.Impl
@@ -37,6 +38,8 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         private readonly Dictionary<string, ICommunicationGroupClientInternal> _commGroups;
 
         private readonly INetworkService<GeneralGroupCommunicationMessage> _networkService;
+
+        private static readonly Logger Logger = Logger.GetLogger(typeof(GroupCommClient));
 
         /// <summary>
         /// Creates a new WritableGroupCommClient and registers the task ID with the Name Server.
@@ -97,6 +100,7 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// </summary>
         public void Dispose()
         {
+            Logger.Log(Level.Info, "-----------------------GroupCommClient.Dispose");
             _networkService.Unregister();
             _networkService.Dispose();
         }

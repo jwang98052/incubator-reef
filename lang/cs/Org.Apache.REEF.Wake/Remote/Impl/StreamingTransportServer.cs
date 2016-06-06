@@ -187,18 +187,25 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
             {
                 while (!token.IsCancellationRequested)
                 {
-                    T message = await link.ReadAsync(token);
-
-                    if (message == null)
+                    try
                     {
-                        break;
-                    }
+                        T message = await link.ReadAsync(token);
 
-                    TransportEvent<T> transportEvent = new TransportEvent<T>(message, link);
-                    _remoteObserver.OnNext(transportEvent);
+                        if (message == null)
+                        {
+                            break;
+                        }
+
+                        TransportEvent<T> transportEvent = new TransportEvent<T>(message, link);
+                        _remoteObserver.OnNext(transportEvent);
+                    }
+                    catch (Exception e)
+                    {
+                        LOGGER.Log(Level.Warning, "$$$$$$$$$$$$$$$$$$$$$$$$ProcessClient throw", e.GetBaseException());
+                        _remoteObserver.OnError(e);
+                    }
                 }
-                LOGGER.Log(Level.Error,
-                    "ProcessClient close the Link. IsCancellationRequested: " + token.IsCancellationRequested);
+                LOGGER.Log(Level.Error, "ProcessClient close the Link. IsCancellationRequested: " + token.IsCancellationRequested);
             }
         }
     }

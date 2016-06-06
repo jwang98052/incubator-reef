@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using Org.Apache.REEF.Utilities.Logging;
 using Org.Apache.REEF.Wake.StreamingCodec;
 
 namespace Org.Apache.REEF.Wake.Remote.Impl
@@ -33,6 +34,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         private readonly Dictionary<IPEndPoint, ProxyObserver> _cachedClients;
         private readonly IStreamingCodec<IRemoteEvent<T>> _remoteEventCodec;
         private readonly ITcpClientConnectionFactory _tcpClientFactory;
+        private static readonly Logger Logger = Logger.GetLogger(typeof(StreamingRemoteManager<T>));
 
         /// <summary>
         /// Constructs a DefaultRemoteManager listening on the specified address and
@@ -41,7 +43,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         /// <param name="localAddress">The address to listen on</param>
         /// <param name="tcpPortProvider">Tcp port provider</param>
         /// <param name="streamingCodec">Streaming codec</param>
-       /// <param name="tcpClientFactory">provides TcpClient for given endpoint</param>
+        /// <param name="tcpClientFactory">provides TcpClient for given endpoint</param>
         internal StreamingRemoteManager(IPAddress localAddress,
             ITcpPortProvider tcpPortProvider,
             IStreamingCodec<T> streamingCodec,
@@ -116,6 +118,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
             ProxyObserver remoteObserver;
             if (!_cachedClients.TryGetValue(remoteEndpoint, out remoteObserver))
             {
+                Logger.Log(Level.Info, "++++++++++++++++++StreamingRemoteManager.GetRemoteObserver, remoteEndpoint: " + remoteEndpoint);
                 remoteObserver = CreateRemoteObserver(remoteEndpoint);
                 _cachedClients[remoteEndpoint] = remoteObserver;
             }
@@ -164,6 +167,8 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
 
         private ProxyObserver CreateRemoteObserver(IPEndPoint remoteEndpoint)
         {
+            Logger.Log(Level.Info, "++++++++++++++++++StreamingRemoteManager.CreateRemoteObserver, remoteEndpoint:" + remoteEndpoint);
+
             StreamingTransportClient<IRemoteEvent<T>> client =
                 new StreamingTransportClient<IRemoteEvent<T>>(remoteEndpoint,
                     _observerContainer,
@@ -247,6 +252,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         /// </summary>
         public void Dispose()
         {
+            Logger.Log(Level.Info, "-----------------------StreamingRemoteManager.Dispose");
             foreach (ProxyObserver cachedClient in _cachedClients.Values)
             {
                 cachedClient.Dispose();

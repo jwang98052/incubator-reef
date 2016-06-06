@@ -177,6 +177,23 @@ namespace Org.Apache.REEF.Common.Runtime.Evaluator.Task
                 Utilities.Diagnostics.Exceptions.Caught(e, Level.Error, "Error during Close.", Logger);
                 _currentStatus.SetException(new TaskClientCodeException(TaskId, ContextId, "Error during Close().", e));
             }
+            finally
+            {
+                Logger.Log(Level.Info, "TaskRuntime.Close, finally._userTask: " + _userTask);
+                try
+                {
+                    if (_userTask != null)
+                    {
+                        Logger.Log(Level.Info, "TaskRuntime.Close, dispose user task");
+                        _userTask.Dispose();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Utilities.Diagnostics.Exceptions.Caught(
+                        e, Level.Error, "Exception in disposing Task but ignoring as Task has already completed.", Logger);
+                }
+            }
         }
 
         public void Suspend(byte[] message)

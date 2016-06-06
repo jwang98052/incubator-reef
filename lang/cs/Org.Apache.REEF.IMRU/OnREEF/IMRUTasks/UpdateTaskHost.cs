@@ -71,6 +71,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
         /// </summary>
         private readonly ManualResetEventSlim _waitToCloseEvent = new ManualResetEventSlim(false);
 
+        private IGroupCommClient _groupCommunicationsClient;
+
+        private bool _disposed = false;
+
         /// <summary>
         /// </summary>
         /// <param name="updateTask">The UpdateTask hosted in this REEF Task.</param>
@@ -87,6 +91,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
             [Parameter(typeof(InvokeGC))] bool invokeGC)
         {
             _updateTask = updateTask;
+            _groupCommunicationsClient = groupCommunicationsClient;
             var cg = groupCommunicationsClient.GetCommunicationGroup(IMRUConstants.CommunicationGroupName);
             _dataAndControlMessageSender =
                 cg.GetBroadcastSender<MapInputWithControlMessage<TMapInput>>(IMRUConstants.BroadcastOperatorName);
@@ -106,6 +111,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
             var updateResult = _updateTask.Initialize();
             int iterNo = 0;
 
+            Logger.Log(Level.Info, "Entering update task");
             while (updateResult.HasMapInput && Interlocked.Read(ref _shouldCloseTask) == 0)
             {
                 iterNo++;
@@ -148,6 +154,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
             {
                 _waitToCloseEvent.Set();
             }
+            Logger.Log(Level.Info, "end of update task");
             return null;
         }
 
@@ -160,16 +167,30 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
         /// <param name="closeEvent"></param>
         public void OnNext(ICloseEvent closeEvent)
         {
-            var msg = Encoding.UTF8.GetString(closeEvent.Value.Value);
-            if (closeEvent.Value.IsPresent() && msg.Equals(TaskManager.CloseTaskByDriver))
+            //// var msg = Encoding.UTF8.GetString(closeEvent.Value.Value);
+            if (closeEvent.Value.IsPresent() && Encoding.UTF8.GetString(closeEvent.Value.Value).Equals(TaskManager.CloseTaskByDriver))
             {
-                Logger.Log(Level.Info, "The task received close event with message: {0}.", msg);
+                Logger.Log(Level.Info, "The task received close event with message: {0}.", Encoding.UTF8.GetString(closeEvent.Value.Value));
                 Interlocked.Exchange(ref _shouldCloseTask, 1);
 
                 _waitToCloseEvent.Wait(TimeSpan.FromMilliseconds(_enforceCloseTimeoutMilliseconds));
 
                 if (Interlocked.Read(ref _isTaskStopped) == 0)
                 {
+                    ////Dispose();
+                    throw new IMRUTaskSystemException(TaskManager.TaskKilledByDriver);
+                }
+            }
+            else
+            {
+                Logger.Log(Level.Info, "The task is  closed from TaskRuntime");
+                Interlocked.Exchange(ref _shouldCloseTask, 1);
+
+                _waitToCloseEvent.Wait(TimeSpan.FromMilliseconds(_enforceCloseTimeoutMilliseconds));
+
+                if (Interlocked.Read(ref _isTaskStopped) == 0)
+                {
+                    ////Dispose();
                     throw new IMRUTaskSystemException(TaskManager.TaskKilledByDriver);
                 }
             }
@@ -180,6 +201,12 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
         /// </summary>
         public void Dispose()
         {
+            if (!_disposed)
+            {
+                Logger.Log(Level.Info, "-----------------------UpdateTask.Dispose");
+                _groupCommunicationsClient.Dispose();
+                _disposed = true;
+            }
         }
 
         public void OnError(Exception error)

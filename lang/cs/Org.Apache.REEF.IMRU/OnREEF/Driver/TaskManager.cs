@@ -251,9 +251,13 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="failedEvaluator"></param>
         internal void RecordTaskFailWhenReceivingFailedEvaluator(IFailedEvaluator failedEvaluator)
         {
+            Logger.Log(Level.Info, "RecordTaskFailWhenReceivingFailedEvaluator :" + failedEvaluator.Id);
+
             if (failedEvaluator.FailedTask.IsPresent())
             {
+                Logger.Log(Level.Info, "RecordTaskFailWhenReceivingFailedEvaluator :");
                 var taskId = failedEvaluator.FailedTask.Value.Id;
+                Logger.Log(Level.Info, "RecordTaskFailWhenReceivingFailedEvaluator :" + taskId);
                 var taskState = GetTaskState(taskId);
                 if (taskState == StateMachine.TaskState.TaskRunning)
                 {
@@ -265,6 +269,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     _runningTasks.Remove(taskId);
                 }
 
+                Logger.Log(Level.Info, "RecordTaskFailWhenReceivingFailedEvaluator UpdateState:" + taskId);
                 UpdateState(taskId, TaskStateEvent.FailedTaskEvaluatorError);
             }
         }

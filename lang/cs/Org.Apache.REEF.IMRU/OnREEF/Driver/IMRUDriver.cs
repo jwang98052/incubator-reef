@@ -337,7 +337,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="runningTask"></param>
         public void OnNext(IRunningTask runningTask)
         {
-            Logger.Log(Level.Verbose, string.Format(CultureInfo.InvariantCulture, "Received IRunningTask {0} at SystemState {1}", runningTask.Id, _systemState.CurrentState));
+            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "Received IRunningTask {0} at SystemState {1} in retry # {2}.", runningTask.Id, _systemState.CurrentState, _numberOfRetryForFaultTolerant));
             lock (_lock)
             {
                 switch (_systemState.CurrentState)
@@ -376,7 +376,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         /// <param name="completedTask">The link to the completed task</param>
         public void OnNext(ICompletedTask completedTask)
         {
-            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "Received ICompletedTask {0}, systemState {1}", completedTask.Id, _systemState.CurrentState));
+            Logger.Log(Level.Info, string.Format(CultureInfo.InvariantCulture, "Received ICompletedTask {0}, systemState {1} in retry # {2}.", completedTask.Id, _systemState.CurrentState, _numberOfRetryForFaultTolerant));
 
             lock (_lock)
             {
@@ -438,7 +438,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     Logger.Log(Level.Verbose, "Evaluator with Id: {0} failed but IMRU task is completed. So ignoring.", failedEvaluator.Id);
                     return;
                 }
-                Logger.Log(Level.Info, "Evaluator with Id: {0} failed with Exception: {1}", failedEvaluator.Id, failedEvaluator.EvaluatorException);
+                Logger.Log(Level.Info, "Evaluator with Id: {0} failed with Exception: {1} in retry # {2}.", failedEvaluator.Id, failedEvaluator.EvaluatorException, _numberOfRetryForFaultTolerant);
 
                 var isMaster = _evaluatorManager.IsMasterEvaluatorId(failedEvaluator.Id);
                 _evaluatorManager.RecordFailedEvaluator(failedEvaluator.Id);
@@ -554,7 +554,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     return;
                 }
 
-                Logger.Log(Level.Info, "Task with Id: {0} failed with message: {1}", failedTask.Id, failedTask.Message);
+                Logger.Log(Level.Info, "Task with Id: {0} failed with message: {1} in retry #: {2}.", failedTask.Id, failedTask.Message, _numberOfRetryForFaultTolerant);
 
                 switch (_systemState.CurrentState)
                 {
@@ -674,12 +674,10 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     _systemState.MoveNext(SystemStateEvent.Recover);
                 }
 
-                var requestMaster = _isFirstTry || _evaluatorManager.IsMasterEvaluatorFailed();
                 var mappersToRequest = _isFirstTry ? _totalMappers : _evaluatorManager.NumberofFailedMappers();
-
                 _evaluatorManager.ResetFailedEvaluators();
 
-                if (!requestMaster && mappersToRequest == 0)
+                if (mappersToRequest == 0)
                 {
                     Logger.Log(Level.Info, "There is no failed Evaluator in this recovery.");
                     if (_contextManager.AreAllContextsReceived)
@@ -693,7 +691,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
                     return;
                 }
 
-                if (requestMaster)
+                if (_isFirstTry)
                 {
                     Logger.Log(Level.Info, "Requesting a master Evaluator.");
                     _evaluatorManager.RequestMasterEvaluator();
@@ -715,6 +713,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
         {
             return !_evaluatorManager.ReachedMaximumNumberOfEvaluatorFailures()
                 && _taskManager.NumberOfAppErrors() == 0
+                && !_evaluatorManager.IsMasterEvaluatorFailed()
                 && _numberOfRetryForFaultTolerant < _maxRetryNumberForFaultTolerant;
         }
 

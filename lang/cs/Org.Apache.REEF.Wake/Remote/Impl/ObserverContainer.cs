@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Net;
+using Org.Apache.REEF.Utilities.Logging;
 using Org.Apache.REEF.Wake.Util;
 
 namespace Org.Apache.REEF.Wake.Remote.Impl
@@ -28,6 +29,8 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
     /// </summary>
     internal sealed class ObserverContainer<T> : IObserver<TransportEvent<IRemoteEvent<T>>>
     {
+        private static readonly Logger Logger = Logger.GetLogger(typeof(ObserverContainer<T>));
+
         private readonly ConcurrentDictionary<IPEndPoint, IObserver<T>> _endpointMap;
         private readonly ConcurrentDictionary<Type, IObserver<IRemoteMessage<T>>> _typeMap;
         private IObserver<T> _universalObserver;
@@ -78,6 +81,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         /// <param name="transportEvent">The incoming remote event</param>
         public void OnNext(TransportEvent<IRemoteEvent<T>> transportEvent)
         {
+            Logger.Log(Level.Info, "ObserverContainer.OnNext()");
             IRemoteEvent<T> remoteEvent = transportEvent.Data;
             remoteEvent.LocalEndPoint = transportEvent.Link.LocalEndpoint;
             remoteEvent.RemoteEndPoint = transportEvent.Link.RemoteEndpoint;
@@ -114,6 +118,8 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
 
         public void OnError(Exception error)
         {
+            Logger.Log(Level.Info, "************ObserverContainer.OnError(): " + error.StackTrace);
+            throw error;
         }
 
         public void OnCompleted()

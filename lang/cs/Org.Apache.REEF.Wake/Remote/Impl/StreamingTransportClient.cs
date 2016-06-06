@@ -68,6 +68,7 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
             ITcpClientConnectionFactory clientFactory)
             : this(remoteEndpoint, streamingCodec, clientFactory)
         {
+            Logger.Log(Level.Info, "++++++++++++++++++entering constructor of StreamingTransportClient, observer:" + observer.GetType().AssemblyQualifiedName);
             _observer = observer;
             Task.Factory.StartNew(() => ResponseLoop(), TaskCreationOptions.LongRunning);
         }
@@ -101,7 +102,9 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
         {
             if (!_disposed)
             {
-                _link.Dispose();
+                Logger.Log(Level.Info, "-----------------------StreamingTransportClient.Dispose");
+                _cancellationSource.Cancel();
+                _link.Dispose();               
                 _disposed = true;
             }
         }
@@ -124,12 +127,17 @@ namespace Org.Apache.REEF.Wake.Remote.Impl
                     TransportEvent<T> transportEvent = new TransportEvent<T>(message, _link);
                     _observer.OnNext(transportEvent);
                 }
+                catch (OperationCanceledException)
+                {
+                    Logger.Log(Level.Info, "StreamingTransportClient has been canceled.");
+                }
                 catch (Exception e)
                 {
-                    Logger.Log(Level.Warning, "$$$$$$$$$$$$$$$$$$$$$$$$Client response loop threw", e.GetBaseException());
+                    Logger.Log(Level.Warning, "$$$$$$$$$$$$$$$$$$$$$$$$Client response loop throw", e.GetBaseException());
                     _observer.OnError(e);
                 }
             }
+            Logger.Log(Level.Error, "ResponseLoop close the Link. IsCancellationRequested: " + _cancellationSource.IsCancellationRequested);
         }
     }
 }

@@ -15,7 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+using System;
+using System.Reactive;
+using Org.Apache.REEF.Common.Poison;
+using Org.Apache.REEF.Common.Tasks;
+using Org.Apache.REEF.Common.Tasks.Events;
+using Org.Apache.REEF.IMRU.API;
+using Org.Apache.REEF.IMRU.Examples.PipelinedBroadcastReduce;
 using Org.Apache.REEF.IMRU.OnREEF.Driver;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
+using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Tang.Util;
 using Xunit;
@@ -24,13 +33,13 @@ using TraceLevel = System.Diagnostics.TraceLevel;
 namespace Org.Apache.REEF.Tests.Functional.IMRU
 {
     [Collection("FunctionalTests")]
-    public class IMRUBrodcastReduceWithoutIMRUClientTest : IMRUBrodcastReduceTestBase
+    public class IMRUBroadCastReduceWithFailedMasterEvaluatorTest : IMRUBrodcastReduceTestBase
     {
         /// <summary>
         /// This test is for the normal scenarios of IMRUDriver and IMRUTasks on local runtime
         /// </summary>
         [Fact]
-        public void TestWithHandlersInIMRUDriverOnLocalRuntime()
+        public void TestWithFailedMasterOnLocalRuntime()
         {
             int chunkSize = 2;
             int dims = 100;
@@ -41,7 +50,7 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
             string testFolder = DefaultRuntimeFolder + TestId;
             TestBroadCastAndReduce(false, numTasks, chunkSize, dims, iterations, mapperMemory, updateTaskMemory, testFolder);
             ValidateSuccessForLocalRuntime(numTasks, 0, 0, testFolder);
-            CleanUp(testFolder);
+            ////CleanUp(testFolder);
         }
 
         /// <summary>
@@ -88,6 +97,27 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
                     GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
                 .Set(REEF.Driver.DriverConfiguration.CustomTraceLevel, TraceLevel.Info.ToString())
                 .Build();
+        }
+
+        /// <summary>
+        /// Update function configuration. Subclass can override it to have its own test function.
+        /// </summary>
+        /// <returns></returns>
+        protected override IConfiguration BuildUpdateFunctionConfig()
+        {
+            var updateFunctionConfig = IMRUUpdateConfiguration<int[], int[], int[]>.ConfigurationModule
+                .Set(IMRUUpdateConfiguration<int[], int[], int[]>.UpdateFunction,
+                    GenericType<BroadcastSenderReduceReceiverUpdateFunction>.Class)
+                .Build();
+
+            var poisonConfig = TangFactory.GetTang().NewConfigurationBuilder()
+                .BindSetEntry<TaskConfigurationOptions.StartHandlers, PoisonedEventHandler<ITaskStart>, IObserver<ITaskStart>>(
+                    GenericType<TaskConfigurationOptions.StartHandlers>.Class, GenericType<PoisonedEventHandler<ITaskStart>>.Class)
+                .BindIntNamedParam<CrashTimeout>("1000")
+                .BindIntNamedParam<CrashMinDelay>("100")
+                .BindNamedParameter<CrashProbability, double>(GenericType<CrashProbability>.Class, "1.0")
+                .Build();
+            return Configurations.Merge(updateFunctionConfig, poisonConfig);
         }
     }
 }

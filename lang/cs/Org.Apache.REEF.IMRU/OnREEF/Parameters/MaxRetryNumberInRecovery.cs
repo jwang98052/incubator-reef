@@ -19,7 +19,7 @@ using Org.Apache.REEF.Tang.Annotations;
 
 namespace Org.Apache.REEF.IMRU.OnREEF.Parameters
 {
-    [NamedParameter("Maximum retry number in fault tolerant recovery.", "maxRetryInRecovery", "5")]
+    [NamedParameter("Maximum retry number in fault tolerant recovery.", "maxRetryInRecovery", "2")]
     internal sealed class MaxRetryNumberInRecovery : Name<int>
     {
     }
