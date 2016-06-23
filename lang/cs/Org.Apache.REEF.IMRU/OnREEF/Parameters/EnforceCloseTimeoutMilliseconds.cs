@@ -24,7 +24,7 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Parameters
     /// After specified time out, if the task is still not closed, the close handler will throw exception, 
     /// enforce the task to close after waiting for this much time (in milliseconds). 
     /// </summary>
-    [NamedParameter("Enforce the task to close after waiting for this much time (in milliseconds).", "EnforceCloseTimeout", "1000")]
+    [NamedParameter("Enforce the task to close after waiting for this much time (in milliseconds).", "EnforceCloseTimeout", "5000")]
     internal sealed class EnforceCloseTimeoutMilliseconds : Name<int>
     {
     }

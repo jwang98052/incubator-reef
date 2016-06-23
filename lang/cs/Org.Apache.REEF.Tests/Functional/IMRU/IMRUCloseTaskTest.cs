@@ -16,6 +16,8 @@
 // under the License.
 
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using Org.Apache.REEF.Driver.Task;
 using Org.Apache.REEF.IMRU.OnREEF.Driver;
 using Org.Apache.REEF.Tang.Annotations;
@@ -128,39 +130,71 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
         /// </summary>
         internal sealed class TestHandlers : IObserver<IRunningTask>, IObserver<IFailedTask>, IObserver<ICompletedTask>
         {
+            private readonly ISet<IRunningTask> _runningTasks = new HashSet<IRunningTask>();
+            private readonly object _lock = new object();
+
             [Inject]
             private TestHandlers()
             {
             }
 
             /// <summary>
-            /// Log the task id and dispose the context
+            /// Add the RunningTask to _runningTasks and dispose the last received running task
             /// </summary>
             public void OnNext(IRunningTask value)
             {
-                Logger.Log(Level.Info, "Received running task, closing it" + value.Id);
-                value.Dispose(ByteUtilities.StringToByteArrays(TaskManager.CloseTaskByDriver));
+                lock (_lock)
+                {
+                    Logger.Log(Level.Info, "Received running task, closing it" + value.Id);
+                    _runningTasks.Add(value);
+                    if (_runningTasks.Count == 4)
+                    {
+                        value.Dispose(ByteUtilities.StringToByteArrays(TaskManager.CloseTaskByDriver));
+                        _runningTasks.Remove(value);
+                    }
+                }
             }
 
             /// <summary>
-            /// Validate the event and dispose the context
+            /// Validate the event 
+            /// Close the running tasks if any
+            /// Then dispose the context
             /// </summary>
             /// <param name="value"></param>
             public void OnNext(IFailedTask value)
             {
-                Logger.Log(Level.Info, FailTaskMessage + value.Id);
-                var failedExeption = ByteUtilities.ByteArraysToString(value.Data.Value);
-                Assert.Contains(TaskManager.TaskKilledByDriver, failedExeption);
-                value.GetActiveContext().Value.Dispose();
+                lock (_lock)
+                {
+                    Logger.Log(Level.Info, FailTaskMessage + value.Id);
+                    var failedExeption = ByteUtilities.ByteArraysToString(value.Data.Value);
+                    Assert.Contains(TaskManager.TaskKilledByDriver, failedExeption);
+                    CloseRunningTasks();
+                    value.GetActiveContext().Value.Dispose();
+                }
             }
 
             /// <summary>
-            /// Log the task id and dispose the context
+            /// Log the task id 
+            /// Close the running tasks if any
+            /// Then dispose the context
             /// </summary>
             public void OnNext(ICompletedTask value)
             {
-                Logger.Log(Level.Info, CompletedTaskMessage + value.Id);
-                value.ActiveContext.Dispose();
+                lock (_lock)
+                {
+                    Logger.Log(Level.Info, CompletedTaskMessage + value.Id);
+                    CloseRunningTasks();
+                    value.ActiveContext.Dispose();
+                }
+            }
+
+            private void CloseRunningTasks()
+            {
+                foreach (var task in _runningTasks)
+                {
+                    task.Dispose(ByteUtilities.StringToByteArrays(TaskManager.CloseTaskByDriver));
+                }
+                _runningTasks.Clear();
             }
 
             public void OnCompleted()

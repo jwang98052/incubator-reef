@@ -286,10 +286,11 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// <summary>
         /// Receive an incoming message from the parent Task.
         /// </summary>
+        /// <param name="cancellationSource">The cancellation token for the data reading operation cancellation</param>
         /// <returns>The parent Task's message</returns>
-        public T ReceiveFromParent()
+        public T ReceiveFromParent(CancellationTokenSource cancellationSource = null)
         {
-            T[] data = ReceiveFromNode(_parent);
+            T[] data = ReceiveFromNode(_parent, cancellationSource);
             if (data == null || data.Length != 1)
             {
                 throw new InvalidOperationException("Cannot receive data from parent node");
@@ -314,8 +315,9 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// given IReduceFunction.
         /// </summary>
         /// <param name="reduceFunction">The class used to reduce messages</param>
+        /// <param name="cancellationSource">The cancellation token for the data reading operation cancellation</param>
         /// <returns>The result of reducing messages</returns>
-        public T ReceiveFromChildren(IReduceFunction<T> reduceFunction)
+        public T ReceiveFromChildren(IReduceFunction<T> reduceFunction, CancellationTokenSource cancellationSource = null)
         {
             if (reduceFunction == null)
             {
@@ -327,11 +329,11 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
 
             while (childrenToReceiveFrom.Count > 0)
             {
-                var childrenWithData = GetNodeWithData(childrenToReceiveFrom);
+                var childrenWithData = GetNodeWithData(childrenToReceiveFrom, cancellationSource);
 
                 foreach (var child in childrenWithData)
                 {
-                    T[] data = ReceiveFromNode(child);
+                    T[] data = ReceiveFromNode(child, cancellationSource);
                     if (data == null || data.Length != 1)
                     {
                         throw new InvalidOperationException("Received invalid data from child with id: " + child.Identifier);
@@ -362,8 +364,9 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// Get a set of nodes containing an incoming message and belonging to candidate set of nodes.
         /// </summary>
         /// <param name="nodeSetIdentifier">Candidate set of nodes from which data is to be received</param>
+        /// <param name="cancellationSource">The cancellation token for the data reading operation cancellation</param>
         /// <returns>A Vector of NodeStruct with incoming data.</returns>
-        private IEnumerable<NodeStruct<T>> GetNodeWithData(IEnumerable<string> nodeSetIdentifier)
+        private IEnumerable<NodeStruct<T>> GetNodeWithData(IEnumerable<string> nodeSetIdentifier, CancellationTokenSource cancellationSource = null)
         {
             CancellationTokenSource timeoutSource = new CancellationTokenSource(_timeout);
             List<NodeStruct<T>> nodesSubsetWithData = new List<NodeStruct<T>>();
@@ -392,32 +395,45 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
 
                     while (_nodesWithData.Count != 0)
                     {
-                        _nodesWithData.Take();
+                        TakeNodeStruct(cancellationSource);
                     }
                 }
 
-                var potentialNode = _nodesWithData.Take();
+                var potentialNode = TakeNodeStruct(cancellationSource);
 
                 while (!nodeSetIdentifier.Contains(potentialNode.Identifier))
                 {
-                    potentialNode = _nodesWithData.Take();
+                    potentialNode = TakeNodeStruct(cancellationSource);
                 }
 
                 return new NodeStruct<T>[] { potentialNode };
             }
             catch (OperationCanceledException)
             {
-                Logger.Log(Level.Error, "No data to read from child");
+                Logger.Log(Level.Warning, "OperatorTopology received OperationCanceledException, no data to read from child");
                 throw;
             }
             catch (ObjectDisposedException)
             {
-                Logger.Log(Level.Error, "No data to read from child");
+                Logger.Log(Level.Error, "OperatorTopology received ObjectDisposedException, no data to read from child");
                 throw;
             }
             catch (InvalidOperationException)
             {
-                Logger.Log(Level.Error, "No data to read from child");
+                Logger.Log(Level.Error, "OperatorTopology received InvalidOperationException, no data to read from child");
+                throw;
+            }
+        }
+
+        private NodeStruct<T> TakeNodeStruct(CancellationTokenSource cancellationTokenSource = null)
+        {
+            try
+            {
+                return cancellationTokenSource == null ? _nodesWithData.Take() : _nodesWithData.Take(cancellationTokenSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Logger.Log(Level.Warning, "OperatorTopology received OperationCanceledException in TakeNodeStruct.");
                 throw;
             }
         }
@@ -426,7 +442,6 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// Sends the message to the Task represented by the given NodeStruct.
         /// </summary>
         /// <param name="message">The message to send</param>
-        /// <param name="msgType">The message type</param>
         /// <param name="node">The NodeStruct representing the Task to send to</param>
         private void SendToNode(T message, NodeStruct<T> node)
         {
@@ -440,7 +455,6 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// Sends the list of messages to the Task represented by the given NodeStruct.
         /// </summary>
         /// <param name="messages">The list of messages to send</param>
-        /// <param name="msgType">The message type</param>
         /// <param name="node">The NodeStruct representing the Task to send to</param>
         private void SendToNode(IList<T> messages, NodeStruct<T> node)
         {
@@ -457,10 +471,11 @@ namespace Org.Apache.REEF.Network.Group.Task.Impl
         /// Removes the NodeStruct from the nodesWithData queue if requested.
         /// </summary>
         /// <param name="node">The node to receive from</param>
+        /// <param name="cancellationSource">The cancellation token for the data reading operation cancellation</param>
         /// <returns>The byte array message from the node</returns>
-        private T[] ReceiveFromNode(NodeStruct<T> node)
+        private T[] ReceiveFromNode(NodeStruct<T> node, CancellationTokenSource cancellationSource = null)
         {
-            var data = node.GetData();
+            var data = node.GetData(cancellationSource);
             return data;
         }
 

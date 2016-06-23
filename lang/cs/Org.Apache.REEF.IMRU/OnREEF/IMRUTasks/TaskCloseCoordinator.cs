@@ -29,19 +29,11 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
 {
     /// <summary>
     /// This class provides a method to handle Task close event. It is called from TaskCloseEventHandler. 
-    /// It also wraps flags to represent if the task should be closed and if the task has been stopped
-    /// so that to provide a coordination between the task and the close handler.  
     /// </summary>
     [ThreadSafe]
     internal sealed class TaskCloseCoordinator
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(TaskCloseCoordinator));
-
-        /// <summary>
-        /// When a close event is received, this variable is set to 1. At the beginning of each task iteration,
-        /// if this variable is set to 1, the task will break from the loop and return from the Call() method.
-        /// </summary>
-        private long _shouldCloseTask = 0;
 
         /// <summary>
         /// Waiting time for the task to close by itself
@@ -65,15 +57,16 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
 
         /// <summary>
         /// Handle Task close event.
-        /// Set _shouldCloseTask to 1 so that to inform the task to stop at the end of the current iteration.
+        /// Cancel the CancellationToken for data reading operation
         /// Then waiting for the signal from Call method. Either it is signaled or after _enforceCloseTimeoutMilliseconds,
         /// If the closed event is sent from driver, checks if the _waitToCloseEvent has been signaled. If not, throw 
-        /// IMRUTaskSystemException to enforce the task to stop.
+        /// IMRUTaskSystemException.
         /// </summary>
         /// <param name="closeEvent"></param>
-        internal void HandleEvent(ICloseEvent closeEvent)
+        /// <param name="cancellationTokenSource"></param>
+        internal void HandleEvent(ICloseEvent closeEvent, CancellationTokenSource cancellationTokenSource)
         {
-            Interlocked.Exchange(ref _shouldCloseTask, 1);
+            cancellationTokenSource.Cancel();
             var taskSignaled = _waitToCloseEvent.Wait(TimeSpan.FromMilliseconds(_enforceCloseTimeoutMilliseconds));
 
             if (closeEvent.Value.IsPresent())
@@ -93,15 +86,6 @@ namespace Org.Apache.REEF.IMRU.OnREEF.IMRUTasks
             {
                 Logger.Log(Level.Warning, "The task received close event with no message.");
             }
-        }
-
-        /// <summary>
-        /// Indicates if the task should be stopped.
-        /// </summary>
-        /// <returns></returns>
-        internal bool ShouldCloseTask()
-        {
-            return Interlocked.Read(ref _shouldCloseTask) == 1;
         }
 
         /// <summary>
