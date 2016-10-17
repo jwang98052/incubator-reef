@@ -16,12 +16,16 @@
 // under the License.
 
 using System.Globalization;
+using System.IO;
 using Org.Apache.REEF.Client.Local;
 using Org.Apache.REEF.Client.Yarn;
+using Org.Apache.REEF.Client.Yarn.RestClient;
 using Org.Apache.REEF.IMRU.OnREEF.Client;
 using Org.Apache.REEF.Network;
 using Org.Apache.REEF.Tang.Implementations.Configuration;
+using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Tang.Interface;
+using Org.Apache.REEF.Tang.Util;
 
 namespace Org.Apache.REEF.IMRU.Examples
 {
@@ -67,14 +71,25 @@ namespace Org.Apache.REEF.IMRU.Examples
         /// </summary>
         /// <returns>The yarn runtime configuration</returns>
         internal static IConfiguration GetYarnIMRUConfiguration()
-        {
+        { 
             IConfiguration imruClientConfig =
                 REEFIMRUClientConfiguration.ConfigurationModule.Build();
 
             var runtimeConfig = YARNClientConfiguration.ConfigurationModule
+                .Set(YARNClientConfiguration.JobSubmissionFolderPrefix, @"/vol1/tmp")
+                .Set(YARNClientConfiguration.SecurityTokenKind, "TrustedApplicationTokenIdentifier")
+                .Set(YARNClientConfiguration.SecurityTokenService, "TrustedApplicationTokenIdentifier")
                 .Build();
 
-            return Configurations.Merge(runtimeConfig, imruClientConfig, GetTcpConfiguration());
+            string token = "TrustedApplication007";
+            File.WriteAllText("SecurityTokenId", token);
+            File.WriteAllText("SecurityTokenPwd", "none");
+
+            var yarnProviderConfig = TangFactory.GetTang().NewConfigurationBuilder()
+                .BindImplementation(GenericType<IUrlProvider>.Class, GenericType<YarnConfigurationUrlProvider>.Class)
+                .Build();
+
+            return Configurations.Merge(runtimeConfig, imruClientConfig, GetTcpConfiguration(), yarnProviderConfig);
         }
 
         private static IConfiguration GetTcpConfiguration()

@@ -28,6 +28,8 @@ import org.apache.reef.wake.impl.ThreadPoolStage;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Delayed event router that dispatches messages to the proper event handler by type.
@@ -51,6 +53,7 @@ public final class DispatchingEStage implements AutoCloseable {
    */
   private final ThreadPoolStage<DelayedOnNext> stage;
 
+  private static final Logger LOG = Logger.getLogger(DispatchingEStage.class.getName());
   /**
    * @param errorHandler used for exceptions thrown from the event handlers registered.
    * @param numThreads   number of threads to allocate to dispatch events.
@@ -114,7 +117,14 @@ public final class DispatchingEStage implements AutoCloseable {
    * Return true if there are no messages queued or in processing, false otherwise.
    */
   public boolean isEmpty() {
-    return this.stage.getQueueLength() + this.stage.getActiveCount() == 0;
+    int queueLen = this.stage.getQueueLength();
+    int activeCount = this.stage.getActiveCount();
+
+    if (queueLen != 0 || activeCount != 0) {
+      LOG.log(Level.INFO, "$$$$ DispatchingEStage:: isEmpty(): getQueueLength: " + queueLen
+          + "  this.stage.getActiveCount():" + activeCount);
+    }
+    return queueLen + activeCount == 0;
   }
 
   /**

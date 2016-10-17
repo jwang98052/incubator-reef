@@ -16,13 +16,17 @@
 // under the License.
 
 using System;
+using System.IO;
 using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Client.Yarn;
+using Org.Apache.REEF.Client.Yarn.RestClient;
 using Org.Apache.REEF.Common.Evaluator;
 using Org.Apache.REEF.Common.Evaluator.DriverConnectionConfigurationProviders;
 using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.Tang.Annotations;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
 using Org.Apache.REEF.Tang.Implementations.Tang;
+using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Tang.Util;
 
 namespace Org.Apache.REEF.Examples.DriverRestart
@@ -81,7 +85,30 @@ namespace Org.Apache.REEF.Examples.DriverRestart
 
         public static void Main(string[] args)
         {
-            TangFactory.GetTang().NewInjector(YARNClientConfiguration.ConfigurationModule.Build()).GetInstance<DriverRestart>().Run();
+            TangFactory.GetTang().NewInjector(GetYarnConfig()).GetInstance<DriverRestart>().Run();
+        }
+
+        private static IConfiguration GetYarnConfig()
+        {
+            var c = YARNClientConfiguration.ConfigurationModule
+                .Set(YARNClientConfiguration.SecurityTokenKind, "TrustedApplicationTokenIdentifier")
+                .Set(YARNClientConfiguration.SecurityTokenService, "TrustedApplicationTokenIdentifier")
+                .Build();
+
+            string token = "TrustedApplication007";
+            File.WriteAllText("SecurityTokenId", token);
+            File.WriteAllText("SecurityTokenPwd", "none");
+
+            IConfiguration tcpPortConfig = TcpPortConfigurationModule.ConfigurationModule
+                .Set(TcpPortConfigurationModule.PortRangeStart, "2000")
+                .Set(TcpPortConfigurationModule.PortRangeCount, "20")
+                .Build();
+
+            var c2 = TangFactory.GetTang().NewConfigurationBuilder()
+                .BindImplementation(GenericType<IUrlProvider>.Class, GenericType<YarnConfigurationUrlProvider>.Class)
+                .Build();
+
+            return Configurations.Merge(c, tcpPortConfig, c2);
         }
     }
 }

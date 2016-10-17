@@ -53,16 +53,17 @@ public final class DriverIdleManager {
    * @param reason An indication whether the component is idle, along with a descriptive message.
    */
   public synchronized void onPotentiallyIdle(final IdleMessage reason) {
+    LOG.log(Level.INFO, "$$$ entering onPotentiallyIdle: reason: " + reason);
 
     final DriverStatusManager driverStatusManagerImpl = this.driverStatusManager.get();
 
     if (driverStatusManagerImpl.isClosing()) {
-      LOG.log(IDLE_REASONS_LEVEL, "Ignoring idle call from [{0}] for reason [{1}]",
+      LOG.log(Level.INFO, "Ignoring idle call from [{0}] for reason [{1}]",
           new Object[] {reason.getComponentName(), reason.getReason()});
       return;
     }
 
-    LOG.log(IDLE_REASONS_LEVEL, "Checking for idle because {0} reported idleness for reason [{1}]",
+    LOG.log(Level.INFO, "Checking for idle because {0} reported idleness for reason [{1}]",
         new Object[] {reason.getComponentName(), reason.getReason()});
 
     boolean isIdle = true;
@@ -70,15 +71,16 @@ public final class DriverIdleManager {
 
       final IdleMessage idleMessage = idlenessSource.getIdleStatus();
 
-      LOG.log(IDLE_REASONS_LEVEL, "[{0}] is reporting {1} because [{2}].",
+      LOG.log(Level.INFO, "[{0}] is reporting {1} because [{2}].",
           new Object[] {idleMessage.getComponentName(),
               idleMessage.isIdle() ? "idle" : "not idle", idleMessage.getReason()});
 
       isIdle &= idleMessage.isIdle();
     }
 
+    LOG.log(Level.INFO, "$$$ onPotentiallyIdle: isIdle: " + isIdle);
     if (isIdle) {
-      LOG.log(Level.INFO, "All components indicated idle. Initiating Driver shutdown.");
+      LOG.log(Level.INFO, "All components indicated idle. Initiating Driver shutdown -- updated.");
       driverStatusManagerImpl.onComplete();
     }
   }

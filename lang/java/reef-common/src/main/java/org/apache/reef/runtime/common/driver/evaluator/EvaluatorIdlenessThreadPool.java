@@ -72,8 +72,10 @@ public final class EvaluatorIdlenessThreadPool {
           }
         }
 
+        LOG.log(Level.INFO, "$$$$ before manager.checkIdlenessSource for Evaluator " + manager.getId());
         manager.checkIdlenessSource();
-        LOG.log(Level.FINE, "Evaluator " + manager.getId() + " has finished.");
+        LOG.log(Level.INFO, "$$$$ after manager.checkIdlenessSource for " + manager.getId()
+            + ". Evaluator has finished!!");
       }
     });
   }

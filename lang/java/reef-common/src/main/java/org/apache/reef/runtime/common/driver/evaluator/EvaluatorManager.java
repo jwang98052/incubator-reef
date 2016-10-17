@@ -274,7 +274,9 @@ public final class EvaluatorManager implements Identifiable, AutoCloseable {
       }
     }
 
+    LOG.log(Level.INFO, "###$$$$ Before runCheckAsync(this) for evaluatorId: " + this.evaluatorId);
     this.idlenessThreadPool.runCheckAsync(this);
+    LOG.log(Level.INFO, "###$$$$ After runCheckAsync(this) for evaluatorId: " + this.evaluatorId);
   }
 
   /**
@@ -282,7 +284,14 @@ public final class EvaluatorManager implements Identifiable, AutoCloseable {
    * <em>and</em> there are no messages queued or in processing.
    */
   public boolean isClosed() {
-    return this.messageDispatcher.isEmpty() && this.stateManager.isCompleted();
+    Boolean isEmpty = this.messageDispatcher.isEmpty();
+    Boolean isCompleted = this.stateManager.isCompleted();
+    if (!(isEmpty && isCompleted)) {
+      LOG.log(Level.WARNING, "$$$$ EvaluatorManager: EvaluatorId:" + this.evaluatorId +
+          " messageDispatcher.isEmpty:" + isEmpty +
+          " this.stateManager.isCompleted():" + isCompleted);
+    }
+    return isEmpty && isCompleted;
   }
 
   /**

@@ -78,13 +78,16 @@ public final class Evaluators implements AutoCloseable {
    * (and their processing queues are empty).
    */
   public synchronized boolean allEvaluatorsAreClosed() {
+    LOG.log(Level.INFO, "$$$ Enter allEvaluatorsAreClosed");
     synchronized (this.evaluators) {
       for (final EvaluatorManager eval : this.evaluators.values()) {
         if (!eval.isClosed()) {
+          LOG.log(Level.INFO, "$$$ Exit allEvaluatorsAreClosed with false for evaluator id: " + eval.getId());
           return false;
         }
       }
     }
+    LOG.log(Level.INFO, "$$$ Exit allEvaluatorsAreClosed with true");
     return true;
   }
 
