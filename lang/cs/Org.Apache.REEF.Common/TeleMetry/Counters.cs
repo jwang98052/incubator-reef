@@ -30,7 +30,7 @@ namespace Org.Apache.REEF.Common.Telemetry
         /// <summary>
         /// It contains name and count pairs
         /// </summary>
-        private readonly IDictionary<string, int> _counters = new Dictionary<string, int>();
+        private IDictionary<string, int> _counters = new Dictionary<string, int>();
 
         /// <summary>
         /// The lock for counters
@@ -96,6 +96,11 @@ namespace Org.Apache.REEF.Common.Telemetry
             }
         }
 
+        public IDictionary<string, int> GetCounters()
+        {
+            return _counters;
+        }
+
         /// <summary>
         /// return serialized string of counter data
         /// TODO: [REEF-] use an unique number for the counter name mapping to reduce the data transfer over the wire
@@ -117,7 +122,12 @@ namespace Org.Apache.REEF.Common.Telemetry
         /// <returns>Returns deserialized name value pairs of the counters.</returns>
         public IDictionary<string, int> Deserialize(string counterStr)
         {
-            return JsonConvert.DeserializeObject<IDictionary<string, int>>(counterStr);
+            var counters = JsonConvert.DeserializeObject<IDictionary<string, int>>(counterStr);
+            lock (_counterLock)
+            {
+                _counters = counters;
+                return _counters;
+            }
         }
     }
 }
