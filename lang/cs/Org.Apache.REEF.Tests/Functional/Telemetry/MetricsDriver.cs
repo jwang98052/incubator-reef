@@ -63,7 +63,6 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
             const string contextId = "ContextID";
 
             var serviceConfiguration = ServiceConfiguration.ConfigurationModule
-                ////.Set(ServiceConfiguration.Services, GenericType<EvaluatorMetricsContext>.Class)
                 .Build();
 
             var contextConfiguration = ContextConfiguration.ConfigurationModule

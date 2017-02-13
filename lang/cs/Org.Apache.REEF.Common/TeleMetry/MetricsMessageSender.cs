@@ -39,12 +39,21 @@ namespace Org.Apache.REEF.Common.Telemetry
         {
             get
             {
-                int count;
-                _evaluatorMetrics.GetMetricsCounters().TryGetValue("TestCounter1", out count);
-                Logger.Log(Level.Info, "$$$$$$$$MetricsMessageSender:" + count + ",   Serialized counter" + _evaluatorMetrics.Serialize());
+                ICounter counter;
+                _evaluatorMetrics.GetMetricsCounters().TryGetValue("TestCounter1", out counter);
 
-                return Optional<ContextMessage>.Of(
-                 ContextMessage.From(MessageSourceId, ByteUtilities.StringToByteArrays(_evaluatorMetrics.Serialize())));
+                if (counter != null)
+                {
+                    Logger.Log(Level.Info, "$$$$$$$$MetricsMessageSender:" + counter.Value + ",   Serialized counter" + _evaluatorMetrics.Serialize());
+                }
+
+                if (_evaluatorMetrics.Serialize() != null)
+                {
+                    return Optional<ContextMessage>.Of(
+                        ContextMessage.From(MessageSourceId,
+                            ByteUtilities.StringToByteArrays(_evaluatorMetrics.Serialize())));
+                }
+                return Optional<ContextMessage>.Empty();
             }
         }
     }

@@ -38,7 +38,7 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
         {
             _evaluatorMetrics = evaluatorMetrics;
             _counters = _evaluatorMetrics.GetMetricsCounters();
-            _counters.TryRegisterCounter(TestCounter1);
+            _counters.TryRegisterCounter(TestCounter1, "This is test counter1");
         }
 
         public byte[] Call(byte[] memento)
