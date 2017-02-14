@@ -246,6 +246,11 @@ under the License.
     <Compile Include="Tasks\TaskConfiguration.cs" />
     <Compile Include="Tasks\TaskConfigurationOptions.cs" />
     <Compile Include="Tasks\TaskMessage.cs" />
+    <Compile Include="Telemetry\DefaultMetricsSink.cs" />
+    <Compile Include="Telemetry\DriverMetrics.cs" />
+    <Compile Include="Telemetry\IDriverMerics.cs" />
+    <Compile Include="Telemetry\IMetricsSink.cs" />
+    <Compile Include="Telemetry\MetricSinks.cs" />
     <Compile Include="Telemetry\MetricsService.cs" />
     <Compile Include="Telemetry\MetricsMessageSender.cs" />
     <Compile Include="Telemetry\Counter.cs" />

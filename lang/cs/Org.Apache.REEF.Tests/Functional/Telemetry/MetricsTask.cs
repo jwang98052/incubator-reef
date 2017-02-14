@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-using System;
 using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Common.Telemetry;
@@ -29,6 +28,7 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
         private static readonly Logger Logger = Logger.GetLogger(typeof(MetricsTask));
 
         public const string TestCounter1 = "TestCounter1";
+        public const string TestCounter2 = "TestCounter2";
 
         private readonly IEvaluatorMetrics _evaluatorMetrics;
         private readonly ICounters _counters;
@@ -39,6 +39,7 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
             _evaluatorMetrics = evaluatorMetrics;
             _counters = _evaluatorMetrics.GetMetricsCounters();
             _counters.TryRegisterCounter(TestCounter1, "This is test counter1");
+            _counters.TryRegisterCounter(TestCounter2, "This is test counter2");
         }
 
         public byte[] Call(byte[] memento)
@@ -46,6 +47,7 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
             for (int i = 0; i < 100; i++)
             {
                 _counters.Increment(TestCounter1, 1);
+                _counters.Increment(TestCounter2, 2);
                 Thread.Sleep(100);
             }
             return null;
