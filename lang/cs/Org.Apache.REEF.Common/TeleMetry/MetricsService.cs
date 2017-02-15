@@ -42,7 +42,7 @@ namespace Org.Apache.REEF.Common.Telemetry
         {
             var msgReceived = ByteUtilities.ByteArraysToString(contextMessage.Message);
             Logger.Log(Level.Info, "$$$$$$$$$$$Received context message: " + msgReceived);
-            var counters = new Counters(msgReceived);
+            var counters = new EvaluatorMetrics(msgReceived).GetMetricsCounters();
             var counterCollection = counters.GetCounters();
             
             foreach (var counter in counterCollection)

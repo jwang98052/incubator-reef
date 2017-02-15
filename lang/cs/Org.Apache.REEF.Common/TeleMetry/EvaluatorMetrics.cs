@@ -16,10 +16,12 @@
 // under the License.
 
 using Org.Apache.REEF.Tang.Annotations;
+using Org.Apache.REEF.Utilities.Attributes;
 
 namespace Org.Apache.REEF.Common.Telemetry
-{    
-    public class EvaluatorMetrics : IEvaluatorMetrics
+{
+    [Unstable("0.16", "This is to build a simple metrics with counters only. More metrics will be added in future.")]
+    internal class EvaluatorMetrics : IEvaluatorMetrics
     {
         private readonly Counters _counters;
 
@@ -29,6 +31,10 @@ namespace Org.Apache.REEF.Common.Telemetry
             _counters = counters;
         }
 
+        /// <summary>
+        /// Create an EvaluatorMetrics from a serialized metrics string.
+        /// </summary>
+        /// <param name="serializedMsg"></param>
         public EvaluatorMetrics(string serializedMsg)
         {
             _counters = new Counters(serializedMsg);

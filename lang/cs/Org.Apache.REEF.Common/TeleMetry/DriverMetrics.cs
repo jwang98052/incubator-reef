@@ -19,10 +19,10 @@ using Org.Apache.REEF.Tang.Annotations;
 
 namespace Org.Apache.REEF.Common.Telemetry
 {
-    public class DriverMetrics : IDriverMetrics
+    internal class DriverMetrics : IDriverMetrics
     {
         [Inject]
-        public DriverMetrics()
+        private DriverMetrics()
         {            
         }
 
