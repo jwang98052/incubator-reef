@@ -21,7 +21,7 @@ using Org.Apache.REEF.Utilities.Attributes;
 namespace Org.Apache.REEF.Common.Telemetry
 {
     [Unstable("0.16", "This is to build a simple metrics with counters only. More metrics will be added in future.")]
-    internal class EvaluatorMetrics : IEvaluatorMetrics
+    internal sealed class EvaluatorMetrics : IEvaluatorMetrics
     {
         private readonly Counters _counters;
 
@@ -35,7 +35,7 @@ namespace Org.Apache.REEF.Common.Telemetry
         /// Create an EvaluatorMetrics from a serialized metrics string.
         /// </summary>
         /// <param name="serializedMsg"></param>
-        public EvaluatorMetrics(string serializedMsg)
+        internal EvaluatorMetrics(string serializedMsg)
         {
             _counters = new Counters(serializedMsg);
         }

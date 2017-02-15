@@ -25,7 +25,7 @@ namespace Org.Apache.REEF.Common.Telemetry
     /// </summary>
     [Unstable("0.16", "This is a simple counter for evaluator metrics.")]
     [DataContract]
-    internal class Counter : ICounter
+    internal sealed class Counter : ICounter
     {
         /// <summary>
         /// Name of the counter.
@@ -52,7 +52,7 @@ namespace Org.Apache.REEF.Common.Telemetry
         /// </summary>
         /// <param name="name"></param>
         /// <param name="description"></param>
-        public Counter(string name, string description)
+        internal Counter(string name, string description)
         {
             _name = name;
             _description = description;
@@ -64,7 +64,7 @@ namespace Org.Apache.REEF.Common.Telemetry
         /// Constructor to create a counter from a serialized counter string
         /// </summary>
         [JsonConstructor]
-        public Counter(string name, string description, long timeStamp, int value)
+        internal Counter(string name, string description, long timeStamp, int value)
         {
             _name = name;
             _description = description;

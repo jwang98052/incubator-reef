@@ -22,7 +22,7 @@ using Org.Apache.REEF.Utilities.Logging;
 
 namespace Org.Apache.REEF.Common.Telemetry
 {
-    public class MetricsMessageSender : IContextMessageSource
+    public sealed class MetricsMessageSender : IContextMessageSource
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(MetricsMessageSender));
 

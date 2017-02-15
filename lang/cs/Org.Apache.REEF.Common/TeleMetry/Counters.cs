@@ -25,7 +25,7 @@ using Org.Apache.REEF.Utilities.Logging;
 namespace Org.Apache.REEF.Common.Telemetry
 {
     [Unstable("0.16", "This is to build a collection of counters for evaluator metrics.")]
-    internal class Counters : ICounters
+    internal sealed class Counters : ICounters
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(Counters));
 
@@ -44,6 +44,10 @@ namespace Org.Apache.REEF.Common.Telemetry
         {
         }
 
+        /// <summary>
+        /// Deserialize a counters serialized string into a Counters object
+        /// </summary>
+        /// <param name="serializedCountersString"></param>
         internal Counters(string serializedCountersString)
         {
             var c = JsonConvert.DeserializeObject<IEnumerable<Counter>>(serializedCountersString);
