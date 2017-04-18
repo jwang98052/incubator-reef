@@ -16,16 +16,27 @@
 // under the License.
 
 using System;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading;
+using Newtonsoft.Json;
 using Org.Apache.REEF.Client.API;
+using Org.Apache.REEF.Client.Common;
 using Org.Apache.REEF.Client.Local;
 using Org.Apache.REEF.Client.Yarn;
+using Org.Apache.REEF.Client.Yarn.RestClient;
 using Org.Apache.REEF.Client.YARN.HDI;
+using Org.Apache.REEF.Client.YARN.RestClient.DataModel;
 using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.IO.FileSystem.AzureBlob;
 using Org.Apache.REEF.Tang.Annotations;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
 using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Tang.Util;
+using Org.Apache.REEF.Utilities.Logging;
+using Org.Apache.REEF.Utilities.Runtime.Yarn;
 
 namespace Org.Apache.REEF.Examples.HelloREEF
 {
@@ -40,6 +51,9 @@ namespace Org.Apache.REEF.Examples.HelloREEF
         private const string HDInsight = "hdi";
         private readonly IREEFClient _reefClient;
         private readonly JobRequestBuilder _jobRequestBuilder;
+        private const string StateRequestUrlTemplate = "{0}ws/v1/cluster/apps/{1}/state";
+
+        private static readonly Logger _Logger = Logger.GetLogger(typeof(HelloREEF));
 
         [Inject]
         private HelloREEF(IREEFClient reefClient, JobRequestBuilder jobRequestBuilder)
@@ -63,10 +77,70 @@ namespace Org.Apache.REEF.Examples.HelloREEF
             var helloJobRequest = _jobRequestBuilder
                 .AddDriverConfiguration(helloDriverConfiguration)
                 .AddGlobalAssemblyForType(typeof(HelloDriver))
+                .SetJavaLogLevel(JavaLoggingSetting.Verbose)
                 .SetJobIdentifier("HelloREEF")
                 .Build();
 
-            _reefClient.Submit(helloJobRequest);
+            var r = _reefClient.SubmitAndGetJobStatus(helloJobRequest);
+
+            _Logger.Log(Level.Info, "Application ID : {0}, DriverUrl : {1}.", r.AppId, r.DriverUrl);
+            ////var rmUrls = YarnConfiguration.GetConfiguration().GetYarnRMWebappEndpoints().Select(uri => uri.ToString());
+            ////foreach (var url in rmUrls)
+            ////{
+            ////    _Logger.Log(Level.Info, "Yarn RM Web point : {0}.", url);
+            ////    var s = GetParentAppStatus(url, r.AppId);
+            ////    _Logger.Log(Level.Info, "current App status : {0}.", s);
+            ////}
+
+            ////var finalSate = PullFinalJobStatus(r);
+
+            ////foreach (var url in rmUrls)
+            ////{
+            ////    var s = GetParentAppStatus(url, r.AppId);
+            ////    _Logger.Log(Level.Info, "Final App status : {0}.", s);
+            ////}
+
+            ////if (finalSate != FinalState.SUCCEEDED)
+            ////{
+            ////    throw new ApplicationException("Hello REEF final state is :" + finalSate.ToString());
+            ////}
+        }
+
+        private string GetParentAppStatus(string rmUrl, string parentApplicationId)
+        {
+            var url = GetApplicationStateUrl(rmUrl, parentApplicationId);
+
+            _Logger.Log(Level.Info, "Attempting to check status of parent Application ID: {0} using URL: {1}",
+                parentApplicationId, url);
+
+            var rmClient = new WebClient();
+            var json = rmClient.DownloadString(url);
+            _Logger.Log(Level.Info, "Check for Application ID: {0}. downloaded json: {1}",
+                parentApplicationId, json);
+
+            dynamic stateObject = JsonConvert.DeserializeObject(json);
+            string appStatus = stateObject == null ? null : stateObject.state.ToString();
+            return appStatus;
+        }
+
+        private string GetApplicationStateUrl(string rmUrl, string appid)
+        {
+            return string.Format(StateRequestUrlTemplate, rmUrl, appid);
+        }
+
+        private FinalState PullFinalJobStatus(IJobSubmissionResult jobSubmitionResult)
+        {
+            int n = 0;
+            var state = jobSubmitionResult.FinalState;
+            while (state.Equals(FinalState.UNDEFINED) && n++ < 100)
+            {
+                Thread.Sleep(2000);
+                state = jobSubmitionResult.FinalState;
+            }
+
+            _Logger.Log(Level.Info, "Application state : {0}.", state);
+
+            return state;
         }
 
         /// <summary>
@@ -82,7 +156,25 @@ namespace Org.Apache.REEF.Examples.HelloREEF
                         .Set(LocalRuntimeClientConfiguration.NumberOfEvaluators, "2")
                         .Build();
                 case YARN:
-                    return YARNClientConfiguration.ConfigurationModule.Build();
+                    var c = YARNClientConfiguration.ConfigurationModule
+                       .Set(YARNClientConfiguration.SecurityTokenKind, "TrustedApplicationTokenIdentifier")
+                       .Set(YARNClientConfiguration.SecurityTokenService, "TrustedApplicationTokenIdentifier")
+                       .Build();
+
+                    string token = "TrustedApplication007";
+                    File.WriteAllText("SecurityTokenId", token);
+                    File.WriteAllText("SecurityTokenPwd", "none");
+
+                    IConfiguration tcpPortConfig = TcpPortConfigurationModule.ConfigurationModule
+                        .Set(TcpPortConfigurationModule.PortRangeStart, "2000")
+                        .Set(TcpPortConfigurationModule.PortRangeCount, "20")
+                        .Build();
+
+                    var c2 = TangFactory.GetTang().NewConfigurationBuilder()
+                        .BindImplementation(GenericType<IUrlProvider>.Class, GenericType<YarnConfigurationUrlProvider>.Class)
+                        .Build();
+
+                    return Configurations.Merge(c, tcpPortConfig, c2);
                 case YARNRest:
                     return YARNClientConfiguration.ConfigurationModuleYARNRest.Build();
                 case HDInsight:

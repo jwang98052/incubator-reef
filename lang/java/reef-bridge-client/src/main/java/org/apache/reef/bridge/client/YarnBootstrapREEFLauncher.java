@@ -39,7 +39,7 @@ public final class YarnBootstrapREEFLauncher {
   private static final Logger LOG = Logger.getLogger(YarnBootstrapREEFLauncher.class.getName());
 
   public static void main(final String[] args) throws IOException, InjectionException {
-    LOG.log(Level.INFO, "Entering BootstrapLauncher.main().");
+    LOG.log(Level.INFO, "$$$$$$$$$$Entering BootstrapLauncher.main()." + "args0:" + args[0] + "args1:" + args[1]);
 
     if (args.length != 2) {
       final StringBuilder sb = new StringBuilder();

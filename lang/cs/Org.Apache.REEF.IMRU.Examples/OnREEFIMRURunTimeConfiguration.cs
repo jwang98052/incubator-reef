@@ -16,6 +16,7 @@
 // under the License.
 
 using System.Globalization;
+using System.IO;
 using Org.Apache.REEF.Client.Local;
 using Org.Apache.REEF.Client.Yarn;
 using Org.Apache.REEF.IMRU.OnREEF.Client;
@@ -72,7 +73,13 @@ namespace Org.Apache.REEF.IMRU.Examples
                 REEFIMRUClientConfiguration.ConfigurationModule.Build();
 
             var runtimeConfig = YARNClientConfiguration.ConfigurationModule
+                .Set(YARNClientConfiguration.SecurityTokenKind, "TrustedApplicationTokenIdentifier")
+                .Set(YARNClientConfiguration.SecurityTokenService, "TrustedApplicationTokenIdentifier")
                 .Build();
+
+            string token = "TrustedApplication007";
+            File.WriteAllText("SecurityTokenId", token);
+            File.WriteAllText("SecurityTokenPwd", "none");
 
             return Configurations.Merge(runtimeConfig, imruClientConfig, GetTcpConnectionConfiguration());
         }

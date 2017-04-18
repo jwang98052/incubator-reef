@@ -18,6 +18,7 @@
  */
 package org.apache.reef.javabridge.generic;
 
+import org.apache.reef.driver.catalog.NodeDescriptor;
 import org.apache.reef.driver.client.JobMessageObserver;
 import org.apache.reef.driver.context.ActiveContext;
 import org.apache.reef.driver.context.ClosedContext;
@@ -232,8 +233,20 @@ public final class JobDriver {
   private void submitEvaluator(final AllocatedEvaluator eval, final EvaluatorProcess process) {
     synchronized (JobDriver.this) {
       eval.setProcess(process);
-      LOG.log(Level.INFO, "Allocated Evaluator: {0}, total running running {1}",
+      LOG.log(Level.INFO, "####Allocated Evaluator: {0}, contexts.size:{1}",
           new Object[]{eval.getId(), JobDriver.this.contexts.size()});
+      EvaluatorDescriptor desc = eval.getEvaluatorDescriptor();
+      if (desc == null) {
+        LOG.log(Level.SEVERE, "####EvaluatorDescriptor is null");
+      }
+
+      NodeDescriptor nods = desc.getNodeDescriptor();
+      if (nods == null) {
+        LOG.log(Level.SEVERE, "####NodeDescriptor is null");
+      }
+      LOG.log(Level.INFO, "Allocated Evaluator NodeDescriptor getAddress: {0}, getHostName: {1}",
+              new Object[]{nods.getInetSocketAddress().getAddress(), nods.getInetSocketAddress().getHostName()});
+
       if (JobDriver.this.handlerManager.getAllocatedEvaluatorHandler() == 0) {
         throw new RuntimeException("Allocated Evaluator Handler not initialized by CLR.");
       }
@@ -348,7 +361,7 @@ public final class JobDriver {
     public void onNext(final AllocatedEvaluator allocatedEvaluator) {
       try (final LoggingScope ls = loggingScopeFactory.evaluatorAllocated(allocatedEvaluator.getId())) {
         synchronized (JobDriver.this) {
-          LOG.log(Level.INFO, "AllocatedEvaluatorHandler.OnNext");
+          LOG.log(Level.INFO, "####AllocatedEvaluatorHandler.OnNext");
           JobDriver.this.submitEvaluator(allocatedEvaluator, clrProcessFactory.newEvaluatorProcess());
         }
       }

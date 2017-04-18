@@ -22,6 +22,8 @@ import com.google.protobuf.ByteString;
 import org.apache.commons.collections.ListUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.hadoop.fs.*;
+import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.service.Service;
 import org.apache.hadoop.yarn.api.records.*;
 import org.apache.hadoop.yarn.client.api.AMRMClient;
@@ -41,12 +43,14 @@ import org.apache.reef.runtime.common.driver.resourcemanager.RuntimeStatusEventI
 import org.apache.reef.runtime.common.files.REEFFileNames;
 import org.apache.reef.runtime.yarn.driver.parameters.JobSubmissionDirectory;
 import org.apache.reef.runtime.yarn.driver.parameters.YarnHeartbeatPeriod;
+import org.apache.reef.runtime.yarn.util.YarnConfigurationSetUp;
 import org.apache.reef.tang.InjectionFuture;
 import org.apache.reef.tang.annotations.Parameter;
 import org.apache.reef.util.Optional;
 import org.apache.reef.wake.remote.impl.ObjectSerializableCodec;
 
 import javax.inject.Inject;
+import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -307,6 +311,22 @@ final class YarnContainerManager
   void onStart() {
 
     LOG.log(Level.FINEST, "YARN registration: begin");
+    YarnConfigurationSetUp.setDefaultFileSystem(yarnConf);
+    //yarnConf.set("fs.defaultFS", "adl://ca0koboperf.caboaccountdogfood.net");
+
+    try {
+      final UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
+      Credentials crendentials = currentUser.getCredentials();
+      if (crendentials != null) {
+        LOG.log(Level.INFO, "Number of tokens onStart in YarnContainerManager: [{0}].", crendentials.numberOfTokens());
+        for (org.apache.hadoop.security.token.Token t : crendentials.getAllTokens()) {
+          LOG.log(Level.INFO, "$$$$$$$$$Token service: " + t.getService().toString() + ", token kind: " + t.getKind().toString());
+          LOG.log(Level.INFO, "$$$$$$$ token id: " + DatatypeConverter.printBase64Binary(t.getIdentifier()));
+        }
+      }
+    } catch (Exception e) {
+      LOG.log(Level.INFO, "Not able to get current user from  UserGroupInformation.", e);
+    }
 
     this.resourceManager.init(this.yarnConf);
     this.resourceManager.start();
@@ -318,11 +338,12 @@ final class YarnContainerManager
 
     try {
 
+      String[] url = this.trackingUrl.split(":");
       LOG.log(Level.FINE, "YARN registration: register AM at \"{0}:{1}\" tracking URL \"{2}\"",
-          new Object[] {AM_REGISTRATION_HOST, AM_REGISTRATION_PORT, this.trackingUrl});
+          new Object[] {url[0], Integer.parseInt(url[1]), this.trackingUrl});
 
       this.registration.setRegistration(this.resourceManager.registerApplicationMaster(
-          AM_REGISTRATION_HOST, AM_REGISTRATION_PORT, this.trackingUrl));
+              url[0], Integer.parseInt(url[1]), this.trackingUrl));
 
       LOG.log(Level.FINE, "YARN registration: AM registered: {0}", this.registration);
 
@@ -481,9 +502,12 @@ final class YarnContainerManager
   private void handleNewContainer(final Container container) {
 
     LOG.log(Level.FINE, "allocated container: id[ {0} ]", container.getId());
+    LOG.log(Level.INFO, "####YArnContainer manager.handleNewContainer: id[{0}], host[{1}], " +
+                    "getNodeHttpAddress[{2}], port[{3}]",
+                    new Object[]{container.getId(), container.getNodeId().getHost(), container.getNodeHttpAddress(),
+                    container.getNodeId().getPort()});
 
     synchronized (this) {
-
       if (!matchContainerWithPendingRequest(container)) {
         LOG.log(Level.WARNING, "Got an extra container {0} that doesn't match, releasing...", container.getId());
         this.resourceManager.releaseAssignedContainer(container.getId());

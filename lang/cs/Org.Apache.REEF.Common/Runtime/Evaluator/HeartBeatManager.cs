@@ -91,8 +91,11 @@ namespace Org.Apache.REEF.Common.Runtime.Evaluator
                 _evaluatorRuntime = evaluatorRuntime;
                 _contextManager = contextManager;
                 _remoteManager = settings.RemoteManager;
+                LOGGER.Log(Level.Info, "errorHandlerRid: " + errorHandlerRid);
                 _remoteId = new SocketRemoteIdentifier(NetUtilities.ParseIpEndpoint(errorHandlerRid));
+                LOGGER.Log(Level.Info, "_remoteId: " + _remoteId);
                 _observer = _remoteManager.GetRemoteObserver(new RemoteEventEndPoint<REEFMessage>(_remoteId));
+                LOGGER.Log(Level.Info, "after GetRemoteObserver");
                 _clock = settings.RuntimeClock;
                 _heartBeatPeriodInMillSeconds = settings.HeartBeatPeriodInMs;
                 _maxHeartbeatRetries = settings.MaxHeartbeatRetries;

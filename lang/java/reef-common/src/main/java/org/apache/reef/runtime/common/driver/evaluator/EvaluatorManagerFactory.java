@@ -57,6 +57,12 @@ public final class EvaluatorManagerFactory {
 
   private EvaluatorManager getNewEvaluatorManagerInstanceForResource(
       final ResourceEvent resourceEvent) {
+    LOG.log(Level.INFO,
+            "####getNewEvaluatorManagerInstanceForResource ResourceEvent: identifier[{0}], rack[{1}], " +
+            "nodeId[{2}], runtimename[{3}], virtual core[{4}]",
+            new Object[]{resourceEvent.getIdentifier(), resourceEvent.getRackName(), resourceEvent.getNodeId(),
+                    resourceEvent.getRuntimeName(),
+                    resourceEvent.getVirtualCores()});
     NodeDescriptor nodeDescriptor = this.resourceCatalog.getNode(resourceEvent.getNodeId());
 
     if (nodeDescriptor == null) {

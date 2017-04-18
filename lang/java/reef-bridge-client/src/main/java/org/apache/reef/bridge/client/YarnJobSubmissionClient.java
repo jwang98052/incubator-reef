@@ -19,10 +19,12 @@
 package org.apache.reef.bridge.client;
 
 import org.apache.commons.lang.Validate;
+//import org.apache.commons.net.util.Base64;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.records.LocalResource;
@@ -41,6 +43,7 @@ import org.apache.reef.runtime.yarn.client.uploader.JobFolder;
 import org.apache.reef.runtime.yarn.client.uploader.JobUploader;
 import org.apache.reef.runtime.yarn.driver.parameters.JobSubmissionDirectoryPrefix;
 import org.apache.reef.runtime.yarn.util.YarnConfigurationConstructor;
+import org.apache.reef.runtime.yarn.util.YarnConfigurationSetUp;
 import org.apache.reef.tang.Configuration;
 import org.apache.reef.tang.Tang;
 import org.apache.reef.tang.annotations.Parameter;
@@ -48,6 +51,7 @@ import org.apache.reef.tang.exceptions.InjectionException;
 import org.apache.reef.util.JARFileMaker;
 
 import javax.inject.Inject;
+import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -164,6 +168,12 @@ public final class YarnJobSubmissionClient {
   private static void writeSecurityTokenToUserCredential(
       final YarnClusterSubmissionFromCS yarnSubmission) throws IOException {
     final UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
+    Credentials crendentials = currentUser.getCredentials();
+    if (crendentials != null) {
+      LOG.log(Level.INFO, "Number of tokens before adding customized token: [{0}].", crendentials.numberOfTokens());
+      crendentials.getAllTokens();
+    }
+
     final REEFFileNames fileNames = new REEFFileNames();
     final String securityTokenIdentifierFile = fileNames.getSecurityTokenIdentifierFile();
     final String securityTokenPasswordFile = fileNames.getSecurityTokenPasswordFile();
@@ -171,7 +181,35 @@ public final class YarnJobSubmissionClient {
     final Text tokenService = new Text(yarnSubmission.getTokenService());
     byte[] identifier = Files.readAllBytes(Paths.get(securityTokenIdentifierFile));
     byte[] password = Files.readAllBytes(Paths.get(securityTokenPasswordFile));
-    Token token = new Token(identifier, password, tokenKind, tokenService);
+    addToken(currentUser, identifier, password, tokenKind, tokenService);
+
+    try {
+      byte[] identifier2 = Files.readAllBytes(Paths.get("CaboUserSecurityKeyToken"));
+      byte[] password2 = Files.readAllBytes(Paths.get("CaboUserSecurityKeyTokenPwd"));
+      final String tokenKind2 = "CaboUserSecurityKeyToken";
+      addToken(currentUser, identifier2, password2, new Text(tokenKind2), new Text(tokenKind2));
+
+      final String tokenKind3 = "CaboSystemSecurityKeyToken";
+      addToken(currentUser, identifier2, password2, new Text(tokenKind3), new Text(tokenKind3));
+
+    } catch (IOException e) {
+      LOG.log(Level.INFO, "No CaboUserSecurityKeyToken found, ignore");
+    }
+
+      LOG.log(Level.INFO, "Number of tokens after add in YarnJobSubmission Client: [{0}].", currentUser.getCredentials().numberOfTokens());
+      for (org.apache.hadoop.security.token.Token t : currentUser.getCredentials().getAllTokens()) {
+        LOG.log(Level.INFO, "$$$$$$$$$Token service: " + t.getService().toString() + ", token kind: " + t.getKind().toString());
+        LOG.log(Level.INFO, "$$$$$$$ token id: " + DatatypeConverter.printBase64Binary(t.getIdentifier()));
+      }
+  }
+
+  private static void addToken(final UserGroupInformation currentUser,
+                               final byte[] identifier,
+                               final byte[] password,
+                               final Text tokenKind,
+                               final Text tokenSerive) {
+    LOG.log(Level.INFO, "addToken for " + tokenKind);
+    Token token = new Token(identifier, password, tokenKind, tokenSerive);
     currentUser.addToken(token);
   }
 
@@ -185,6 +223,8 @@ public final class YarnJobSubmissionClient {
   private void writeDriverHttpEndPoint(final File driverFolder,
                                        final String applicationId,
                                        final Path dfsPath) throws  IOException {
+    //yarnConfiguration.set("fs.defaultFS", "adl://ca0koboperf.caboaccountdogfood.net");
+    YarnConfigurationSetUp.setDefaultFileSystem(yarnConfiguration);
     final FileSystem fs = FileSystem.get(yarnConfiguration);
     final Path httpEndpointPath = new Path(dfsPath, fileNames.getDriverHttpEndpoint());
 

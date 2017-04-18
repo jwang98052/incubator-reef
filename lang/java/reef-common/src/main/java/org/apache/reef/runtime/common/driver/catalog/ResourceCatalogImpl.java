@@ -25,10 +25,13 @@ import org.apache.reef.driver.catalog.ResourceCatalog;
 import org.apache.reef.runtime.common.driver.resourcemanager.NodeDescriptorEvent;
 
 import javax.inject.Inject;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * A catalog of the resources available to a REEF instance.
@@ -74,7 +77,7 @@ public final class ResourceCatalogImpl implements ResourceCatalog {
   public synchronized void handle(final NodeDescriptorEvent node) {
     final String rackName = node.getRackName().orElse(DEFAULT_RACK);
 
-    LOG.log(Level.FINEST, "Catalog new node: id[{0}], rack[{1}], host[{2}], port[{3}], memory[{4}]",
+    LOG.log(Level.INFO, "######Catalog new node: id[{0}], rack[{1}], host[{2}], port[{3}], memory[{4}]",
         new Object[]{node.getIdentifier(), rackName, node.getHostName(), node.getPort(),
             node.getMemorySize()}
     );
@@ -84,9 +87,50 @@ public final class ResourceCatalogImpl implements ResourceCatalog {
       this.racks.put(rackName, rack);
     }
     final RackDescriptorImpl rack = this.racks.get(rackName);
+
+    try {
+      InetAddress addr = InetAddress.getByName(node.getHostName());
+      if (addr == null) {
+        LOG.log(Level.SEVERE, "####$$InetAddress.getByName returns null");
+      } else {
+        LOG.log(Level.INFO, "####$$InetAddress.getByName by host {0} returns getAddress: {1}, getHostAddress: {2}.",
+                new Object[] {node.getHostName(), addr.getAddress(), addr.getHostAddress()});
+      }
+    } catch(UnknownHostException e) {
+      LOG.log(Level.SEVERE, "####$$UnknownHostException in InetAddress.getByName", e);
+    }
+
+/*    if (isIP(node.getHostName())) {
+      LOG.log(Level.INFO, "####the host name is IP " + node.getHostName());
+    } else {
+      LOG.log(Level.INFO, "####the host name is not IP " + node.getHostName());
+    }
+
+    try {
+      String[] ip = node.getHostName().split("\\.");
+      byte d1 = (byte)Integer.parseInt(ip[0]);
+      byte d2 = (byte)Integer.parseInt(ip[1]);
+      byte d3 = (byte)Integer.parseInt(ip[2]);
+      byte d4 = (byte)Integer.parseInt(ip[3]);
+      InetAddress addr = InetAddress.getByAddress(new byte[]{d1, d2, d3, d4});
+      LOG.log(Level.INFO, "####the addr " + d1 + "-" + d2 + "-" + d3 + "-" + d4);
+      LOG.log(Level.INFO, "####InetAddress.getByAddress by host {0} returns getAddress: {1}, getHostAddress: {2}.",
+                new Object[]{node.getHostName(), addr.getAddress(), addr.getHostAddress()});
+    } catch (UnknownHostException e) {
+      LOG.log(Level.SEVERE, "####UnknownHostException in InetAddress.getByAddress", e);
+    }*/
+
     final InetSocketAddress address = new InetSocketAddress(node.getHostName(), node.getPort());
+    LOG.log(Level.INFO, "####InetSocketAddress:{0}, hostName: {1}, host: {2}.",
+            new Object[]{address.getAddress(), address.getHostName(), address.getHostString()});
     final NodeDescriptorImpl nodeDescriptor = new NodeDescriptorImpl(node.getIdentifier(), address, rack,
         node.getMemorySize());
+    LOG.log(Level.INFO, "$$$$nodeDescriptor:" + nodeDescriptor.toString());
     this.nodes.put(nodeDescriptor.getId(), nodeDescriptor);
+  }
+
+  public static boolean isIP(final String ipStr) {
+    String regex = "\\b((25[0–5]|2[0–4]\\d|[01]?\\d\\d?)(\\.)){3}(25[0–5]|2[0–4]\\d|[01]?\\d\\d?)\\b";
+    return Pattern.matches(regex, ipStr);
   }
 }

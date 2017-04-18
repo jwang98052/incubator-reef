@@ -44,6 +44,8 @@ namespace Org.Apache.REEF.Driver.Evaluator
 
         internal EvaluatorDescriptorImpl(INodeDescriptor nodeDescriptor, EvaluatorType type, int megaBytes, int core, string runtimeName, string rack = DefaultRackName)
         {
+            LOGGER.Log(Level.Info, "$$$$#EvaluatorDescriptorImpl constructor 1");
+
             _nodeDescriptor = nodeDescriptor;
             _evaluatorType = type;
             _megaBytes = megaBytes;
@@ -53,6 +55,7 @@ namespace Org.Apache.REEF.Driver.Evaluator
             {
                 throw new ArgumentException("Unknown runtime name received " + runtimeName);
             }
+            LOGGER.Log(Level.Info, "$$$$End of EvaluatorDescriptorImpl constructor 1");
         }
 
         /// <summary>
@@ -61,6 +64,15 @@ namespace Org.Apache.REEF.Driver.Evaluator
         /// <param name="str"></param>
         public EvaluatorDescriptorImpl(string str)
         {
+            LOGGER.Log(Level.Info, "$$$$#EvaluatorDescriptorImpl constructor: " + str);
+            if (str == null)
+            {
+                LOGGER.Log(Level.Error, "$$$$EvaluatorDescriptorImpl received null string!!!");
+            }
+            else
+            {
+                LOGGER.Log(Level.Error, "$$$$EvaluatorDescriptorImpl received string:" + str);
+            }
             var settings = new Dictionary<string, string>();
             var components = str.Split(',');
             foreach (var component in components)
@@ -72,6 +84,7 @@ namespace Org.Apache.REEF.Driver.Evaluator
                     Exceptions.Throw(e, LOGGER);
                 }
                 settings.Add(pair[0], pair[1]);
+                LOGGER.Log(Level.Info, "$$$$EvaluatorDescriptorImpl component: name: {0},  value: {1} ", pair[0], pair[1]);
             }
 
             string runtimeNameStr;
@@ -79,6 +92,7 @@ namespace Org.Apache.REEF.Driver.Evaluator
             {
                 Exceptions.Throw(new ArgumentException("cannot find RuntimeName entry"), LOGGER);
             }
+            LOGGER.Log(Level.Info, "$$$$runtimeNameStr: " + runtimeNameStr);
 
             RuntimeName runtimeName;
 
@@ -86,13 +100,16 @@ namespace Org.Apache.REEF.Driver.Evaluator
             {
                 Exceptions.Throw(new ArgumentException("cannot parse RuntimeName entry"), LOGGER);
             }
+            LOGGER.Log(Level.Info, "$$$$runtimeName: " + runtimeName);
 
             string ipAddress;
             if (!settings.TryGetValue("IP", out ipAddress))
             {
                 Exceptions.Throw(new ArgumentException("cannot find IP entry"), LOGGER);
             }
+            LOGGER.Log(Level.Info, "$$$$ipAddress1: " + ipAddress);
             ipAddress = ipAddress.Split('/').Last();
+            LOGGER.Log(Level.Info, "$$$$ipAddress2: " + ipAddress);
             string port;
             if (!settings.TryGetValue("Port", out port))
             {
@@ -100,11 +117,13 @@ namespace Org.Apache.REEF.Driver.Evaluator
             }
             var portNumber = 0;
             int.TryParse(port, out portNumber);
+            LOGGER.Log(Level.Info, "$$$$portNumber: " + portNumber);
             string hostName;
             if (!settings.TryGetValue("HostName", out hostName))
             {
                 Exceptions.Throw(new ArgumentException("cannot find HostName entry"), LOGGER);
             }
+            LOGGER.Log(Level.Info, "$$$$hostName: " + hostName);
             string memory;
             if (!settings.TryGetValue("Memory", out memory))
             {
@@ -122,12 +141,14 @@ namespace Org.Apache.REEF.Driver.Evaluator
             int.TryParse(core, out vCore);
 
             var ipEndPoint = new IPEndPoint(IPAddress.Parse(ipAddress), portNumber);
+            LOGGER.Log(Level.Info, "$$$$ipEndPoint: " + ipEndPoint);
 
             _nodeDescriptor = new NodeDescriptorImpl { InetSocketAddress = ipEndPoint, HostName = hostName };
             _evaluatorType = EvaluatorType.CLR;
             _megaBytes = memoryInMegaBytes;
             _core = vCore;
             _runtimeName = runtimeName;
+            LOGGER.Log(Level.Info, "$$$$end of EvaluatorDescriptorImpl constructor");
         }
 
         public INodeDescriptor NodeDescriptor

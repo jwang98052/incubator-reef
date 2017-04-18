@@ -53,6 +53,7 @@ public final class JobFolder {
   JobFolder(final FileSystem fileSystem, final Path path) throws IOException {
     this.fileSystem = fileSystem;
     this.path = path;
+    LOG.log(Level.INFO, "$$$$JobFolder constructor for path:" + path.getName());
     this.fileSystem.mkdirs(this.path);
   }
 
@@ -63,14 +64,16 @@ public final class JobFolder {
    * @throws IOException if unable to upload the file or local file cannot be read.
    */
   public Path upload(final File localFile) throws IOException {
-
+    LOG.log(Level.INFO, "$$$$JobFolder:upload1");
     if (!localFile.exists()) {
       throw new FileNotFoundException(localFile.getAbsolutePath());
     }
 
+    LOG.log(Level.INFO, "$$$$JobFolder:upload2");
     final Path source = new Path(localFile.getAbsolutePath());
     final Path destination = new Path(this.path, localFile.getName());
 
+    LOG.log(Level.INFO, "$$$$JobFolder:upload3");
     try {
       this.fileSystem.copyFromLocalFile(source, destination);
     } catch (final IOException ex) {
@@ -78,8 +81,11 @@ public final class JobFolder {
       throw ex;
     }
 
-    LOG.log(Level.FINE, "Uploaded {0} to {1}", new Object[] {source, destination});
+    if (fileSystem.exists(destination)) {
+      LOG.log(Level.INFO, "$$$$JobFolder:upload4");
+    }
 
+    LOG.log(Level.FINE, "$$$$Uploaded {0} to {1}", new Object[]{source, destination});
     return destination;
   }
 
@@ -90,7 +96,9 @@ public final class JobFolder {
    * @throws IOException if unable to upload the file or local file cannot be read.
    */
   public LocalResource uploadAsLocalResource(final File localFile, final LocalResourceType type) throws IOException {
+    LOG.log(Level.INFO, "$$$$uploadAsLocalResource1 for localfile:" + localFile.getPath());
     final Path remoteFile = upload(localFile);
+    LOG.log(Level.INFO, "$$$$uploadAsLocalResource2");
     return getLocalResourceForPath(remoteFile, type);
   }
 

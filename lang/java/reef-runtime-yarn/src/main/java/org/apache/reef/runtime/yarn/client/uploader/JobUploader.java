@@ -18,12 +18,20 @@
  */
 package org.apache.reef.runtime.yarn.client.uploader;
 
+import org.apache.commons.net.util.Base64;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.reef.runtime.common.files.REEFFileNames;
 import org.apache.reef.runtime.yarn.driver.JobSubmissionDirectoryProvider;
+import org.apache.reef.runtime.yarn.util.YarnConfigurationSetUp;
+
 import javax.inject.Inject;
 import java.io.IOException;
+//import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,9 +47,29 @@ public final class JobUploader {
 
   @Inject
   JobUploader(final YarnConfiguration yarnConfiguration,
-              final JobSubmissionDirectoryProvider jobSubmissionDirectoryProvider) throws IOException {
+              final JobSubmissionDirectoryProvider jobSubmissionDirectoryProvider)
+              throws IOException, URISyntaxException {
     this.jobSubmissionDirectoryProvider = jobSubmissionDirectoryProvider;
+    final REEFFileNames fileNames = new REEFFileNames();
+    final String securityTokenIdentifierFile = fileNames.getSecurityTokenIdentifierFile();
+    byte[] identifier = Files.readAllBytes(Paths.get(securityTokenIdentifierFile));
+    String encoded = Base64.encodeBase64String(identifier);
+    LOG.log(Level.INFO, "$$$$$$securityTokenIdentifier: " + encoded);
+    yarnConfiguration.set("fs.adl.creds", encoded);
+    LOG.log(Level.INFO, "$$$$$$after setting cred");
+    YarnConfigurationSetUp.setDefaultFileSystem(yarnConfiguration);
+    //yarnConfiguration.set("fs.defaultFS", "adl://ca0koboperf.caboaccountdogfood.net");
+    //yarnConfiguration.set("fs.defaultFS", "adl://kobo05dfaccountadls.caboaccountdogfood.net");
+    LOG.log(Level.INFO, "$$$$$$#after setting setDefaultFileSystem");
     this.fileSystem = FileSystem.get(yarnConfiguration);
+    LOG.log(Level.INFO, "$$$$$$#after FileSystem.get(yarnConfiguration)");
+    //this.fileSystem = FileSystem.get(URI.create("adl://reefadls2.azuredatalakestore.net"), yarnConfiguration);
+    //this.fileSystem = FileSystem.get(URI.create("adl://ca0koboperf.caboaccountdogfood.net"), yarnConfiguration);
+    //this.fileSystem = FileSystem.get(
+    // URI.create("adl://kobo05dfaccountadls.caboaccountdogfood.net"), yarnConfiguration);
+    //LOG.log(Level.INFO, "$$$$$$after FileSystem.FileSystem.get(URI.create()");
+    LOG.log(Level.INFO, "$$$$$$fileSystem.getScheme {0}: getHomeDirectory: {1}.",
+            new Object[] {fileSystem.getScheme(), fileSystem.getHomeDirectory()});
   }
 
   /**
@@ -68,7 +96,8 @@ public final class JobUploader {
    */
   public JobFolder createJobFolder(final String finalJobFolderPath) throws IOException {
     LOG.log(Level.FINE, "Final job submission Directory: " + finalJobFolderPath);
-    return new JobFolder(this.fileSystem, new Path(finalJobFolderPath));
+//    return new JobFolder(this.fileSystem, new Path(finalJobFolderPath));
+    return new JobFolder(this.fileSystem, fileSystem.makeQualified(new Path(finalJobFolderPath)));
   }
 
   /**

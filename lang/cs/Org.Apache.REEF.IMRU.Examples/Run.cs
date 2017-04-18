@@ -142,8 +142,8 @@ namespace Org.Apache.REEF.IMRU.Examples
             string methodName = "MapperCount";
             bool runOnYarn = false;
             int numNodes = 2;
-            int startPort = 8900;
-            int portRange = 1000;
+            int startPort = 2000; ////8900;
+            int portRange = 20; ////1000;
             string resultFilename = " ";
 
             if (args != null)

@@ -29,13 +29,14 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 import org.apache.reef.runtime.yarn.driver.parameters.JobSubmissionDirectory;
+import org.apache.reef.runtime.yarn.util.YarnConfigurationSetUp;
 import org.apache.reef.tang.annotations.Parameter;
-
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 
 /**
  * Uploads files to the current job folder.
@@ -56,6 +57,8 @@ final class UploaderToJobFolder {
   UploaderToJobFolder(@Parameter(JobSubmissionDirectory.class) final String jobSubmissionDirectory,
                       final YarnConfiguration yarnConfiguration) throws IOException {
     this.jobSubmissionDirectory = jobSubmissionDirectory;
+    YarnConfigurationSetUp.setDefaultFileSystem(yarnConfiguration);
+    //yarnConfiguration.set("fs.defaultFS", "adl://ca0koboperf.caboaccountdogfood.net");
     this.fileSystem = FileSystem.get(yarnConfiguration);
   }
 

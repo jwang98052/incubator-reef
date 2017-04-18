@@ -161,6 +161,7 @@ public final class AllocatedEvaluatorBridge extends NativeBridge implements Iden
    * @return the serialized evaluator descriptor.
    */
   public String getEvaluatorDescriptorString() {
+    LOG.log(Level.INFO, "####Start calling getEvaluatorDescriptorString");
     final String descriptorString =
         Utilities.getEvaluatorDescriptorString(jallocatedEvaluator.getEvaluatorDescriptor());
     LOG.log(Level.INFO, "allocated evaluator - serialized evaluator descriptor: " + descriptorString);

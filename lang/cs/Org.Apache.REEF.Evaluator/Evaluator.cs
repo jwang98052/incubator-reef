@@ -146,7 +146,7 @@ namespace Org.Apache.REEF.Evaluator
 
             logger.Log(Level.Info, 
                 string.Format(CultureInfo.CurrentCulture, "Evaluator Configuration is deserialized from file {0}:", evaluatorConfigFile));
-
+            logger.Log(Level.Info, "$$$$Evaluator configuration: " + serializer.ToString(evaluatorConfiguration));
             return evaluatorConfiguration;
         }
 

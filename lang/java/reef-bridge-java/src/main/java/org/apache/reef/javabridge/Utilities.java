@@ -32,6 +32,8 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * CLR/Java bridge utilities.
@@ -39,6 +41,7 @@ import java.nio.file.Paths;
 @Private
 @Interop
 public final class Utilities {
+  private static final Logger LOG = Logger.getLogger(Utilities.class.getName());
   public static ClassHierarchy loadClassHierarchy(final String classHierarchyFile) {
     // TODO[JIRA REEF-400] The file should be created via AvroClassHierarchySerializer
     Path p = Paths.get(classHierarchyFile);
@@ -61,9 +64,11 @@ public final class Utilities {
 
   public static String getEvaluatorDescriptorString(final EvaluatorDescriptor evaluatorDescriptor) {
     final InetSocketAddress socketAddress = evaluatorDescriptor.getNodeDescriptor().getInetSocketAddress();
-    return "IP=" + socketAddress.getAddress() + ", Port=" + socketAddress.getPort() + ", HostName=" +
+    String r = "IP=" + socketAddress.getAddress() + ", Port=" + socketAddress.getPort() + ", HostName=" +
         socketAddress.getHostName() + ", Memory=" + evaluatorDescriptor.getMemory() + ", Core=" +
         evaluatorDescriptor.getNumberOfCores() + ", RuntimeName=" + evaluatorDescriptor.getRuntimeName();
+    LOG.log(Level.INFO, "####Utilities:getEvaluatorDescriptorString: " + r);
+    return r;
   }
 
   /**
