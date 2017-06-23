@@ -17,6 +17,7 @@
 
 using Org.Apache.REEF.Common.Telemetry;
 using Org.Apache.REEF.Driver;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
 using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Tang.Util;
 using Org.Apache.REEF.Utilities.Logging;
@@ -40,13 +41,21 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
 
         private static IConfiguration DriverConfigurations()
         {
-            return DriverConfiguration.ConfigurationModule
+            var c1 = DriverConfiguration.ConfigurationModule
             .Set(DriverConfiguration.OnDriverStarted, GenericType<MetricsDriver>.Class)
             .Set(DriverConfiguration.OnEvaluatorAllocated, GenericType<MetricsDriver>.Class)
             .Set(DriverConfiguration.OnContextActive, GenericType<MetricsDriver>.Class)
-            .Set(DriverConfiguration.OnContextMessage, GenericType<MetricsService>.Class)
             .Set(DriverConfiguration.CustomTraceLevel, Level.Info.ToString())
             .Build();
+
+            //// bind context message handler
+            var c2 = MetricsServiceConfigurationModule.ConfigurationModule
+                .Set(MetricsServiceConfigurationModule.OnMetricsSink, GenericType<DefaultMetricsSink>.Class)
+                .Build();
+
+            var c3 = DriverMetricsObserverConfigurationModule.ConfigurationModule.Build();
+
+            return Configurations.Merge(c1, c2, c3);
         }
     }
 }

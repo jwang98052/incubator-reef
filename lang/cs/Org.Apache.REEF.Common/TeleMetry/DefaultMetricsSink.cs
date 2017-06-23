@@ -21,7 +21,7 @@ using Org.Apache.REEF.Utilities.Logging;
 
 namespace Org.Apache.REEF.Common.Telemetry
 {
-    internal sealed class DefaultMetricsSink : IMetricsSink
+    public sealed class DefaultMetricsSink : IMetricsSink
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(DefaultMetricsSink));
 
@@ -34,7 +34,7 @@ namespace Org.Apache.REEF.Common.Telemetry
         {
             foreach (var m in metrics)
             {
-                Logger.Log(Level.Info, "$$$$$$$$$$$$$$$$$Metrics-name:{0}, Value:{1}.", m.Key, m.Value);
+                Logger.Log(Level.Info, "Metrics-name:{0}, Value:{1}.", m.Key, m.Value);
             }
         }
     }

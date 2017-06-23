@@ -16,6 +16,7 @@
 // under the License.
 
 using System;
+using System.Collections.Generic;
 using Org.Apache.REEF.Common.Context;
 using Org.Apache.REEF.Common.Services;
 using Org.Apache.REEF.Common.Tasks;
@@ -37,21 +38,32 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(MessageDriver));
         private readonly IEvaluatorRequestor _evaluatorRequestor;
-        private readonly MetricsService _metricsService;
+        ////private readonly MetricsService _metricsService;
+        private readonly ISet<IObserver<IDriverMetrics>> _driverMetricsObservers;
         private readonly IDriverMetrics _driverMetrics;
 
+        ////[Inject]
+        ////public MetricsDriver(IEvaluatorRequestor evaluatorRequestor, MetricsService metricsService, IDriverMetrics driverMetrics)
+        ////{
+        ////    _evaluatorRequestor = evaluatorRequestor;
+        ////    _metricsService = metricsService;
+        ////    _driverMetrics = driverMetrics;
+        ////}
+
         [Inject]
-        public MetricsDriver(IEvaluatorRequestor evaluatorRequestor, MetricsService metricsService, IDriverMetrics driverMetrics)
+        public MetricsDriver(IEvaluatorRequestor evaluatorRequestor,
+            [Parameter(typeof(DriverMetricsObservers))] ISet<IObserver<IDriverMetrics>> driverMetricsObservers, 
+            IDriverMetrics driverMetrics)
         {
             _evaluatorRequestor = evaluatorRequestor;
-            _metricsService = metricsService;
+            _driverMetricsObservers = driverMetricsObservers;
             _driverMetrics = driverMetrics;
         }
 
         public void OnNext(IDriverStarted value)
         {
             _driverMetrics.SystemState = "IDriverStartedReceived";
-            _metricsService.OnNext(_driverMetrics);
+            UpdateMetrics();
             var request =
                 _evaluatorRequestor.NewBuilder()
                     .SetNumber(1)
@@ -67,7 +79,8 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
         {
             Logger.Log(Level.Info, "Received IAllocatedEvaluator");
             _driverMetrics.SystemState = "IAllocatedEvaluatorReceived";
-            _metricsService.OnNext(_driverMetrics);
+            ////_metricsService.OnNext(_driverMetrics);
+            UpdateMetrics();
             const string contextId = "ContextID";
 
             var serviceConfiguration = ServiceConfiguration.ConfigurationModule
@@ -85,7 +98,8 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
         {
             Logger.Log(Level.Info, "Received IActiveContext");
             _driverMetrics.SystemState = "IActiveContextReceived";
-            _metricsService.OnNext(_driverMetrics);
+            ////_metricsService.OnNext(_driverMetrics);
+            UpdateMetrics();
 
             const string taskId = "TaskID";
             var taskConfiguration = TaskConfiguration.ConfigurationModule
@@ -103,6 +117,14 @@ namespace Org.Apache.REEF.Tests.Functional.Telemetry
         public void OnError(Exception error)
         {
             throw new NotImplementedException();
+        }
+
+        private void UpdateMetrics()
+        {
+            foreach (var metricsService in _driverMetricsObservers)
+            {
+                metricsService.OnNext(_driverMetrics);
+            }
         }
     }
 }

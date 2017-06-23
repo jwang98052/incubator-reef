@@ -25,7 +25,7 @@ using Org.Apache.REEF.Utilities.Logging;
 
 namespace Org.Apache.REEF.Common.Telemetry
 {
-    public sealed class MetricsService : IObserver<IContextMessage>, IObserver<IDriverMetrics>
+    internal sealed class MetricsService : IObserver<IContextMessage>, IObserver<IDriverMetrics>
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(MetricsService));
         private readonly IDictionary<string, ICounter> _counters = new ConcurrentDictionary<string, ICounter>();

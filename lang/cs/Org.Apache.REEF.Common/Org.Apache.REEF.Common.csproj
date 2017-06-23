@@ -248,6 +248,7 @@ under the License.
     <Compile Include="Tasks\TaskMessage.cs" />
     <Compile Include="Telemetry\DefaultMetricsSink.cs" />
     <Compile Include="Telemetry\DriverMetrics.cs" />
+    <Compile Include="Telemetry\DriverMetricsObservers.cs" />
     <Compile Include="Telemetry\IDriverMerics.cs" />
     <Compile Include="Telemetry\IMetricsSink.cs" />
     <Compile Include="Telemetry\MetricSinks.cs" />

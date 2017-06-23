@@ -20,6 +20,7 @@ using System.Diagnostics;
 using Org.Apache.REEF.Common.Context;
 using Org.Apache.REEF.Common.Evaluator.DriverConnectionConfigurationProviders;
 using Org.Apache.REEF.Common.Evaluator.Parameters;
+using Org.Apache.REEF.Common.Telemetry;
 using Org.Apache.REEF.Driver.Bridge;
 using Org.Apache.REEF.Driver.Context;
 using Org.Apache.REEF.Driver.Evaluator;
