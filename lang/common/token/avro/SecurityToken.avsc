@@ -18,12 +18,12 @@
  */
 [
   /**
-   * Avro schema for serialized security tokens
+   * Avro schema for serialized security token
    */
   {
     "namespace": "org.apache.reef.bridge.client",
 
-    "name": "SecurityTokens",
+    "name": "SecurityToken",
     "doc":  "Security token",
     "type": "record",
     "fields": [
@@ -38,26 +38,14 @@
         "type": "string"
       },
       {
-        "name": "keys",
-        "doc":  "Key/password pairs",
-        "type": {
-
-          "name": "KeyPasswordPair",
-          "doc":  "Key/password pair",
-          "type": "record",
-          "fields": [
-            {
-              "name": "key",
-              "type": "bytes",
-              "doc":  "Token key"
-            },
-            {
-              "name": "password",
-              "type": "bytes",
-              "doc":  "Token password"
-            }
-          ]
-        }
+        "name": "key",
+        "type": "bytes",
+        "doc":  "Token key"
+      },
+      {
+        "name": "password",
+        "type": "bytes",
+        "doc":  "Token password"
       }
     ]
   }
