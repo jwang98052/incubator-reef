@@ -42,6 +42,8 @@ namespace Org.Apache.REEF.Client.YARN
         internal const string DefaultTokenKind = "NULL";
         internal const string DefaultService = "NULL";
 
+        private readonly List<SecurityToken> _tokens;
+
         /// <summary>
         /// Injectable constructor that accepts a set of serialized tokens.
         /// Each serialized token string in the set is a serialized SecurityTokenInfo with JsonConvert 
@@ -50,7 +52,17 @@ namespace Org.Apache.REEF.Client.YARN
         [Inject]
         private SecurityTokenWriter([Parameter(typeof(SecurityTokenStrings))] ISet<string> serializedTokenStrings)
         {
-            ParseTokens(serializedTokenStrings);
+            _tokens = serializedTokenStrings.Select(serializedToken =>
+            {
+                var token = JsonConvert.DeserializeObject<SecurityTokenInfo>(serializedToken);
+                return new SecurityToken(token.TokenKind, token.TokenService,
+                    token.SerializedKeyInfoBytes, Encoding.ASCII.GetBytes(token.TokenPassword));
+            }).ToList();
+        }
+
+        public void WriteTokens(string tokensFileName)
+        {
+            DataFileWriter
         }
 
         internal string TokenKinds { get; private set; }
