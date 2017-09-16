@@ -60,11 +60,6 @@ namespace Org.Apache.REEF.Client.YARN
             }).ToList();
         }
 
-        public void WriteTokens(string tokensFileName)
-        {
-            DataFileWriter
-        }
-
         internal string TokenKinds { get; private set; }
 
         internal string TokenServices { get; private set; }
