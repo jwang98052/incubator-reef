@@ -23,6 +23,7 @@ using Newtonsoft.Json;
 using Org.Apache.REEF.Client.YARN.Parameters;
 using Org.Apache.REEF.Tang.Annotations;
 using Org.Apache.REEF.Utilities.Logging;
+using Microsoft.Hadoop.Avro;
 
 namespace Org.Apache.REEF.Client.YARN
 {
@@ -42,6 +43,7 @@ namespace Org.Apache.REEF.Client.YARN
         internal const string DefaultTokenKind = "NULL";
         internal const string DefaultService = "NULL";
 
+        private readonly IAvroSerializer<SecurityToken> _avroSerializer = AvroSerializer.Create<SecurityToken>();
         private readonly List<SecurityToken> _tokens;
 
         /// <summary>
@@ -58,6 +60,17 @@ namespace Org.Apache.REEF.Client.YARN
                 return new SecurityToken(token.TokenKind, token.TokenService,
                     token.SerializedKeyInfoBytes, Encoding.ASCII.GetBytes(token.TokenPassword));
             }).ToList();
+        }
+
+        public void WriteTokensToFile(string tokensFileName)
+        {
+            using (var stream = File.OpenWrite(tokensFileName))
+            {
+                foreach (var token in _tokens)
+                {
+                    _avroSerializer.Serialize(stream, token);
+                }
+            }
         }
 
         internal string TokenKinds { get; private set; }
