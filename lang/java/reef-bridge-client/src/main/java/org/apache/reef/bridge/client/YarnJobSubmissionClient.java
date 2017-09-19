@@ -76,6 +76,7 @@ public final class YarnJobSubmissionClient {
   private final YarnProxyUser yarnProxyUser;
   private final SecurityTokenProvider tokenProvider;
   private final YarnSubmissionParametersFileGenerator jobSubmissionParametersGenerator;
+  private final SecurityTokensReader securityTokensReader;
 
   @Inject
   YarnJobSubmissionClient(@Parameter(DriverIsUnmanaged.class) final boolean isUnmanaged,
@@ -86,7 +87,8 @@ public final class YarnJobSubmissionClient {
                           final ClasspathProvider classpath,
                           final YarnProxyUser yarnProxyUser,
                           final SecurityTokenProvider tokenProvider,
-                          final YarnSubmissionParametersFileGenerator jobSubmissionParametersGenerator) {
+                          final YarnSubmissionParametersFileGenerator jobSubmissionParametersGenerator,
+                          final SecurityTokensReader securityTokensReader) {
 
     this.isUnmanaged = isUnmanaged;
     this.commandPrefixList = commandPrefixList;
@@ -97,6 +99,7 @@ public final class YarnJobSubmissionClient {
     this.yarnProxyUser = yarnProxyUser;
     this.tokenProvider = tokenProvider;
     this.jobSubmissionParametersGenerator = jobSubmissionParametersGenerator;
+    this.securityTokensReader = securityTokensReader;
   }
 
   /**
@@ -179,6 +182,31 @@ public final class YarnJobSubmissionClient {
     byte[] password = Files.readAllBytes(Paths.get(securityTokenPasswordFile));
     Token token = new Token(identifier, password, tokenKind, tokenService);
     currentUser.addToken(token);
+  }
+
+  private void addTokensToCurrentUser() throws IOException {
+    final UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
+    logToken(Level.INFO, "Before adding client tokens,", currentUser);
+    this.securityTokensReader.addTokensFromFile(currentUser);
+    // Log info for debug purpose for now until it is stable then we can change the log level to FINE.
+    logToken(Level.INFO, "After adding client tokens,", currentUser);
+  }
+
+  /**
+   * Log all the tokens in the container for thr user.
+   *
+   * @param logLevel - the log level.
+   * @param msgPrefix - msg prefix for log.
+   * @param user - the UserGroupInformation object.
+   */
+  private static void logToken(final Level logLevel, final String msgPrefix, final UserGroupInformation user) {
+    if (LOG.isLoggable(logLevel)) {
+      LOG.log(logLevel, "{0} number of tokens: [{1}].",
+          new Object[] {msgPrefix, user.getCredentials().numberOfTokens()});
+      for (final org.apache.hadoop.security.token.Token t : user.getCredentials().getAllTokens()) {
+        LOG.log(logLevel, "Token service: {0}, token kind: {1}.", new Object[] {t.getService(), t.getKind()});
+      }
+    }
   }
 
   /**
@@ -265,14 +293,6 @@ public final class YarnJobSubmissionClient {
             appSubmissionParametersFile, jobSubmissionParametersFile);
 
     LOG.log(Level.INFO, "YARN job submission received from C#: {0}", yarnSubmission);
-    if (!yarnSubmission.getTokenKind().equalsIgnoreCase("NULL")) {
-      // We have to write security token to user credential before YarnJobSubmissionClient is created
-      // as that will need initialization of FileSystem which could need the token.
-      LOG.log(Level.INFO, "Writing security token to user credential");
-      writeSecurityTokenToUserCredential(yarnSubmission);
-    } else{
-      LOG.log(Level.FINE, "Did not find security token");
-    }
 
     if (!yarnSubmission.getFileSystemUrl().equalsIgnoreCase(FileSystemUrl.DEFAULT_VALUE)) {
       LOG.log(Level.INFO, "getFileSystemUrl: {0}", yarnSubmission.getFileSystemUrl());
@@ -291,8 +311,21 @@ public final class YarnJobSubmissionClient {
         .bindNamedParameter(FileSystemUrl.class, yarnSubmission.getFileSystemUrl())
         .bindList(DriverLaunchCommandPrefix.class, launchCommandPrefix)
         .build();
+
     final YarnJobSubmissionClient client = Tang.Factory.getTang().newInjector(yarnJobSubmissionClientConfig)
         .getInstance(YarnJobSubmissionClient.class);
+
+    File f = new File(new REEFFileNames().getSecurityTokensFile());
+    if(f.exists()) {
+      LOG.log(Level.INFO, "Writing security tokens to user credential");
+      client.addTokensToCurrentUser();
+    } else if (!yarnSubmission.getTokenKind().equalsIgnoreCase("NULL")) {
+      // To support backward compatibility
+      LOG.log(Level.INFO, "Writing security token to user credential");
+      writeSecurityTokenToUserCredential(yarnSubmission);
+    } else {
+      LOG.log(Level.FINE, "Did not find security token");
+    }
 
     client.launch(yarnSubmission);
 
