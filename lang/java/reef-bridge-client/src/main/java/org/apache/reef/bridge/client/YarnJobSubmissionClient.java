@@ -64,7 +64,6 @@ import java.util.logging.Logger;
 /**
  * The Java-side of the C# YARN Job Submission API.
  */
-// @SuppressWarnings("checkstyle:hideutilityclassconstructor")
 @Immutable
 public final class YarnJobSubmissionClient {
 
@@ -83,16 +82,17 @@ public final class YarnJobSubmissionClient {
   private static final String DEFAULT_TOKEN_KIND = "NULL";
 
   @Inject
-  YarnJobSubmissionClient(@Parameter(DriverIsUnmanaged.class) final boolean isUnmanaged,
-                          @Parameter(DriverLaunchCommandPrefix.class) final List<String> commandPrefixList,
-                          final JobUploader uploader,
-                          final YarnConfiguration yarnConfiguration,
-                          final REEFFileNames fileNames,
-                          final ClasspathProvider classpath,
-                          final YarnProxyUser yarnProxyUser,
-                          final SecurityTokenProvider tokenProvider,
-                          final YarnSubmissionParametersFileGenerator jobSubmissionParametersGenerator,
-                          final SecurityTokensReader securityTokensReader) {
+  private YarnJobSubmissionClient(
+      @Parameter(DriverIsUnmanaged.class) final boolean isUnmanaged,
+      @Parameter(DriverLaunchCommandPrefix.class) final List<String> commandPrefixList,
+      final JobUploader uploader,
+      final YarnConfiguration yarnConfiguration,
+      final REEFFileNames fileNames,
+      final ClasspathProvider classpath,
+      final YarnProxyUser yarnProxyUser,
+      final SecurityTokenProvider tokenProvider,
+      final YarnSubmissionParametersFileGenerator jobSubmissionParametersGenerator,
+      final SecurityTokensReader securityTokensReader) {
 
     this.isUnmanaged = isUnmanaged;
     this.commandPrefixList = commandPrefixList;
@@ -124,6 +124,9 @@ public final class YarnJobSubmissionClient {
   }
 
   private void launch(final YarnClusterSubmissionFromCS yarnSubmission) throws IOException, YarnException {
+
+    this.setupCredentials(yarnSubmission);
+
     // ------------------------------------------------------------------------
     // Get an application ID
     try (final YarnSubmissionHelper submissionHelper = new YarnSubmissionHelper(
@@ -174,9 +177,25 @@ public final class YarnJobSubmissionClient {
     }
   }
 
-  private static void writeSecurityTokenToUserCredential(
-      final YarnClusterSubmissionFromCS yarnSubmission,
-      final REEFFileNames fileNames) throws IOException {
+  private void setupCredentials(
+      final YarnClusterSubmissionFromCS yarnSubmission) throws IOException {
+
+    final File securityTokensFile = new File(fileNames.getSecurityTokensFile());
+
+    if (securityTokensFile.exists()) {
+      LOG.log(Level.INFO, "Writing security tokens to user credential");
+      this.addTokensToCurrentUser();
+    } else if (!yarnSubmission.getTokenKind().equalsIgnoreCase(DEFAULT_TOKEN_KIND)) {
+      // To support backward compatibility
+      LOG.log(Level.INFO, "Writing security token to user credential");
+      this.writeSecurityTokenToUserCredential(yarnSubmission);
+    } else {
+      LOG.log(Level.FINE, "Did not find security token");
+    }
+  }
+
+  private void writeSecurityTokenToUserCredential(
+      final YarnClusterSubmissionFromCS yarnSubmission) throws IOException {
 
     final String securityTokenIdentifierFile = fileNames.getSecurityTokenIdentifierFile();
     final String securityTokenPasswordFile = fileNames.getSecurityTokenPasswordFile();
@@ -278,6 +297,8 @@ public final class YarnJobSubmissionClient {
     out.close();
   }
 
+  private static final Tang TANG = Tang.Factory.getTang();
+
   /**
    * .NET client calls into this main method for job submission.
    * For arguments detail:
@@ -308,14 +329,12 @@ public final class YarnJobSubmissionClient {
       LOG.log(Level.INFO, "FileSystemUrl is not set, use default from the environment.");
     }
 
-    final Tang tang = Tang.Factory.getTang();
-    final REEFFileNames reefFileNames = tang.newInjector().getInstance(REEFFileNames.class);
-
     final List<String> launchCommandPrefix = new ArrayList<String>() {{
+          final REEFFileNames reefFileNames = TANG.newInjector().getInstance(REEFFileNames.class);
           add(reefFileNames.getDriverLauncherExeFile().getPath());
       }};
 
-    final Configuration yarnJobSubmissionClientConfig = tang.newConfigurationBuilder()
+    final Configuration yarnJobSubmissionClientConfig = TANG.newConfigurationBuilder()
         .bindImplementation(RuntimeClasspathProvider.class, YarnClasspathProvider.class)
         .bindConstructor(org.apache.hadoop.yarn.conf.YarnConfiguration.class, YarnConfigurationConstructor.class)
         .bindNamedParameter(JobSubmissionDirectoryPrefix.class, yarnSubmission.getJobSubmissionDirectoryPrefix())
@@ -324,20 +343,7 @@ public final class YarnJobSubmissionClient {
         .build();
 
     final YarnJobSubmissionClient client =
-        tang.newInjector(yarnJobSubmissionClientConfig).getInstance(YarnJobSubmissionClient.class);
-
-    final File securityTokensFile = new File(reefFileNames.getSecurityTokensFile());
-
-    if (securityTokensFile.exists()) {
-      LOG.log(Level.INFO, "Writing security tokens to user credential");
-      client.addTokensToCurrentUser();
-    } else if (!yarnSubmission.getTokenKind().equalsIgnoreCase(DEFAULT_TOKEN_KIND)) {
-      // To support backward compatibility
-      LOG.log(Level.INFO, "Writing security token to user credential");
-      writeSecurityTokenToUserCredential(yarnSubmission, reefFileNames);
-    } else {
-      LOG.log(Level.FINE, "Did not find security token");
-    }
+        TANG.newInjector(yarnJobSubmissionClientConfig).getInstance(YarnJobSubmissionClient.class);
 
     client.launch(yarnSubmission);
 
