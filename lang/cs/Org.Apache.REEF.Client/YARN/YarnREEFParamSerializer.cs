@@ -19,7 +19,6 @@ using System.IO;
 using Org.Apache.REEF.Client.API;
 using Org.Apache.REEF.Client.Avro;
 using Org.Apache.REEF.Client.Avro.YARN;
-using Org.Apache.REEF.Client.Yarn;
 using Org.Apache.REEF.Client.YARN.Parameters;
 using Org.Apache.REEF.Common.Avro;
 using Org.Apache.REEF.Common.Files;
@@ -42,14 +41,14 @@ namespace Org.Apache.REEF.Client.YARN
 
         /// <summary>
         /// Security token kind name. Used for single token case. 
-        /// It will be deprecated as the information has been included in securityTokenWriter.
         /// </summary>
+        [System.Obsolete("TODO[JIRA REEF-1887] Deprecated. Remove in REEF 0.18.")]
         private readonly string _securityTokenKind;
 
         /// <summary>
         /// Security token service name. Used for single token case. 
-        /// It will be deprecated as the information has been included in securityTokenWriter.
         /// </summary>
+        [System.Obsolete("TODO[JIRA REEF-1887] Deprecated. Remove in REEF 0.18.")]
         private readonly string _securityTokenService;
 
         /// <summary>
@@ -89,8 +88,8 @@ namespace Org.Apache.REEF.Client.YARN
             _fileNames = fileNames;
             _securityTokenWriter = securityTokenWriter;
             _jobSubmissionPrefix = jobSubmissionPrefix;
-            _securityTokenKind = securityTokenKind;
             _fileSystemUrl = fileSystemUrl;
+            _securityTokenKind = securityTokenKind;
             _securityTokenService = securityTokenService;
         }
 
@@ -161,7 +160,7 @@ namespace Org.Apache.REEF.Client.YARN
 
             var avroYarnClusterJobSubmissionParameters = new AvroYarnClusterJobSubmissionParameters
             {
-                //// TODO: [JIRA REEF-1887] Deprecated. Remove in REEF 0.18..
+                // TODO[JIRA REEF-1887] Deprecated. Remove in REEF 0.18.
                 securityTokenKind = _securityTokenKind,
                 securityTokenService = _securityTokenService,
 
