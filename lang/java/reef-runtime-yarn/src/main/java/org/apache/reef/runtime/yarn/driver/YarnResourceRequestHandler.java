@@ -52,8 +52,11 @@ public final class YarnResourceRequestHandler implements ResourceRequestHandler 
 
   @Override
   public synchronized void onNext(final ResourceRequestEvent resourceRequestEvent) {
-    LOG.log(Level.FINEST, "Got ResourceRequestEvent in YarnResourceRequestHandler: memory = {0}, cores = {1}.",
-        new Object[]{resourceRequestEvent.getMemorySize(), resourceRequestEvent.getVirtualCores()});
+    LOG.log(Level.INFO, "$$$Got ResourceRequestEvent in YarnResourceRequestHandler: memory = {0}, cores = {1}," +
+            "nodes: {2}, racks: {3}, resourceCount: {4}.",
+        new Object[]{resourceRequestEvent.getMemorySize(), resourceRequestEvent.getVirtualCores(),
+            resourceRequestEvent.getNodeNameList().size(), resourceRequestEvent.getRackNameList().size(),
+            resourceRequestEvent.getResourceCount()});
 
     final String[] nodes = resourceRequestEvent.getNodeNameList().size() == 0 ? null :
         resourceRequestEvent.getNodeNameList().toArray(new String[resourceRequestEvent.getNodeNameList().size()]);
@@ -68,9 +71,26 @@ public final class YarnResourceRequestHandler implements ResourceRequestHandler 
     final AMRMClient.ContainerRequest[] containerRequests =
         new AMRMClient.ContainerRequest[resourceRequestEvent.getResourceCount()];
 
-    for (int i = 0; i < resourceRequestEvent.getResourceCount(); i++) {
-      containerRequests[i] = new AMRMClient.ContainerRequest(resource, nodes, racks, pri, relaxLocality);
+    int requestId = 0;
+    final int count = resourceRequestEvent.getResourceCount();
+    if (nodes == null) {
+      for (int i = 0; i < count; i++) {
+        containerRequests[i] = new AMRMClient.ContainerRequest(resource, null, racks, pri, requestId++, relaxLocality);
+      }
+    } else {
+      for (int i = 0; i < nodes.length; i++) {
+        LOG.log(Level.INFO, "Creating ContainerRequest for node: {0}, requestid: {1}.",
+            new Object[] {nodes[i], requestId});
+        containerRequests[i] = new AMRMClient.ContainerRequest(resource,
+            new String[] {nodes[i]}, racks, pri, requestId++, relaxLocality);
+      }
+      if (count != nodes.length) {
+        LOG.log(Level.WARNING, "Ask for {0} containers but supplied {1} node names.",
+            new Object[] {count, nodes.length});
+      }
     }
+
+    LOG.log(Level.INFO, "$$$Last request id: {0}.", requestId);
     this.yarnContainerRequestHandler.onContainerRequest(containerRequests);
   }
 
@@ -78,7 +98,7 @@ public final class YarnResourceRequestHandler implements ResourceRequestHandler 
     final Resource result = Records.newRecord(Resource.class);
     final int memory = getMemory(resourceRequestEvent.getMemorySize().get());
     final int core = resourceRequestEvent.getVirtualCores().get();
-    LOG.log(Level.FINEST, "Resource requested: memory = {0}, virtual core count = {1}.", new Object[]{memory, core});
+    LOG.log(Level.INFO, "Resource requested: memory = {0}, virtual core count = {1}.", new Object[]{memory, core});
     result.setMemory(memory);
     result.setVirtualCores(core);
     return result;

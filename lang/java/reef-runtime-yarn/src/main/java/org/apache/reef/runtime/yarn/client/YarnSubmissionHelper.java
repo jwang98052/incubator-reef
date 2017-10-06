@@ -141,7 +141,7 @@ public final class YarnSubmissionHelper implements AutoCloseable {
    * @return
    */
   public YarnSubmissionHelper setDriverMemory(final int megabytes) {
-    applicationSubmissionContext.setResource(Resource.newInstance(getMemory(megabytes), 1));
+    applicationSubmissionContext.setResource(Resource.newInstance(getMemory(megabytes), 6));
     return this;
   }
 
@@ -281,7 +281,7 @@ public final class YarnSubmissionHelper implements AutoCloseable {
         launchCommand, this.resources, tokenProvider.getTokens());
     this.applicationSubmissionContext.setAMContainerSpec(containerLaunchContext);
 
-    LOG.log(Level.INFO, "Submitting REEF Application to YARN. ID: {0}", this.applicationId);
+    LOG.log(Level.INFO, "Submitting REEF Application to YARN. ID: {0}, driver core: {1}", this.applicationId);
 
     if (LOG.isLoggable(Level.INFO)) {
       LOG.log(Level.INFO, "REEF app command: {0}", StringUtils.join(launchCommand, ' '));

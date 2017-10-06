@@ -36,6 +36,9 @@ import org.apache.reef.tang.annotations.Parameter;
 
 import javax.inject.Inject;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -76,10 +79,12 @@ public final class YARNResourceLaunchHandler implements ResourceLaunchHandler {
   public void onNext(final ResourceLaunchEvent resourceLaunchEvent) {
     try {
 
+      DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
       final String containerId = resourceLaunchEvent.getIdentifier();
-      LOG.log(Level.FINEST, "TIME: Start ResourceLaunch {0}", containerId);
+      LOG.log(Level.INFO, "TIME: Start ResourceLaunch {0}", containerId);
       final Container container = this.containers.get(containerId);
-      LOG.log(Level.FINEST, "Setting up container launch container for id={0}", container.getId());
+      LOG.log(Level.INFO, "Setting up container launch container for id={0} at: {1}",
+          new Object[] {container.getId(), dateFormat.format(new Date())});
       final Map<String, LocalResource> localResources =
           this.evaluatorSetupHelper.getResources(resourceLaunchEvent);
 
@@ -95,7 +100,8 @@ public final class YARNResourceLaunchHandler implements ResourceLaunchHandler {
           command, localResources, securityTokensBuffer, YarnUtilities.getApplicationId());
       this.yarnContainerManager.get().submit(container, ctx);
 
-      LOG.log(Level.FINEST, "TIME: End ResourceLaunch {0}", containerId);
+      LOG.log(Level.INFO, "TIME: End ResourceLaunch {0} at {1}",
+          new Object[] {containerId, dateFormat.format(new Date())});
 
     } catch (final IOException e) {
       LOG.log(Level.WARNING, "Error handling resource launch message: " + resourceLaunchEvent, e);

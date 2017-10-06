@@ -32,6 +32,8 @@ using Org.Apache.REEF.Common.Evaluator.Parameters;
 using Org.Apache.REEF.Driver.Bridge.Clr2java;
 using Org.Apache.REEF.Driver.Bridge.Events;
 using Org.Apache.REEF.Driver.Defaults;
+using Org.Apache.REEF.Tang.Formats;
+using Org.Apache.REEF.Tang.Implementations.Configuration;
 using Org.Apache.REEF.Tang.Implementations.InjectionPlan;
 using Org.Apache.REEF.Tang.Implementations.Tang;
 
@@ -119,6 +121,8 @@ namespace Org.Apache.REEF.Driver.Bridge
 
         private readonly ISet<IConfigurationProvider> _configurationProviders;
 
+        private string _configurationProviderString;
+
         private readonly IProgressProvider _progressProvider;
 
         [Inject]
@@ -189,6 +193,7 @@ namespace Org.Apache.REEF.Driver.Bridge
             _httpServerHandler = httpServerHandler;
 
             _configurationProviders = new HashSet<IConfigurationProvider>(configurationProviders) { driverReconnConfigProvider };
+            SetConfigurationStringForProviders();
 
             _progressProvider = progressProvider;
             
@@ -387,6 +392,24 @@ namespace Org.Apache.REEF.Driver.Bridge
         internal ISet<IConfigurationProvider> ConfigurationProviders 
         { 
             get { return _configurationProviders; } 
+        }
+
+        internal string ConfigurationStringForProviders
+        {
+            get { return _configurationProviderString; }
+        }
+
+        private void SetConfigurationStringForProviders()
+        {
+            var _serializer = new AvroConfigurationSerializer();
+
+            var evaluatorConfig = TangFactory.GetTang().NewConfigurationBuilder().Build();
+            foreach (var configurationProvider in _configurationProviders)
+            {
+                evaluatorConfig = Configurations.Merge(evaluatorConfig, configurationProvider.GetConfiguration());
+            }
+
+            _configurationProviderString = _serializer.ToString(evaluatorConfig);
         }
     }
 }

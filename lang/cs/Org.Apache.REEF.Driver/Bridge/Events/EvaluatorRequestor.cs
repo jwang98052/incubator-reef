@@ -81,6 +81,7 @@ namespace Org.Apache.REEF.Driver.Bridge.Events
 
                     var descriptor = new EvaluatorDescriptorImpl(new NodeDescriptorImpl(), EvaluatorType.CLR, request.MemoryMegaBytes, request.VirtualCore, request.RuntimeName, request.Rack);
                     var key = string.Format(CultureInfo.InvariantCulture, "{0}{1}{2}", request.EvaluatorBatchId, BatchIdxSeparator, i);
+                    ////LOGGER.Log(Level.Info, "EvaluatorRequestor:Submit-Evaluator Key {0}", key);
                     try
                     {
                         Evaluators.Add(key, descriptor);

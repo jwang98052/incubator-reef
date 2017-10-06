@@ -30,7 +30,7 @@ namespace Org {
               static BridgeLogger^ LOGGER = BridgeLogger::GetLogger("<C++>");
             };
 
-            AllocatedEvaluatorClr2Java::AllocatedEvaluatorClr2Java(JNIEnv *env, jobject jallocatedEvaluator) {
+            AllocatedEvaluatorClr2Java::AllocatedEvaluatorClr2Java(JNIEnv *env, jobject jallocatedEvaluator, jstring nameServerInfo, jstring evaluatorId) {
 
               ManagedLog::LOGGER->LogStart("AllocatedEvaluatorClr2Java::AllocatedEvaluatorClr2Java");
 
@@ -40,13 +40,22 @@ namespace Org {
               }
               _jobjectAllocatedEvaluator = reinterpret_cast<jobject>(env->NewGlobalRef(jallocatedEvaluator));
 
-              jclass jclassAllocatedEvaluator = env->GetObjectClass(_jobjectAllocatedEvaluator);
-              _jstringId = CommonUtilities::GetJObjectId(env, _jobjectAllocatedEvaluator, jclassAllocatedEvaluator);
+			  ////jclass jclassAllocatedEvaluator = env->GetObjectClass(_jobjectAllocatedEvaluator);
+			  ////_jstringId = CommonUtilities::GetJObjectId(env, _jobjectAllocatedEvaluator, jclassAllocatedEvaluator);
+			  ////_jstringId = evaluatorId;
 
-              jmethodID jmidGetNameServerInfo = env->GetMethodID(jclassAllocatedEvaluator, "getNameServerInfo", "()Ljava/lang/String;");
-              _jstringNameServerInfo = CommonUtilities::CallGetMethodNewGlobalRef<jstring>(env, _jobjectAllocatedEvaluator, jmidGetNameServerInfo);
+			  ////ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::GetId");
+			  ////JNIEnv *env = RetrieveEnv(_jvm);
+			  _evaluatorId = ManagedStringFromJavaString(env, evaluatorId);
 
-              ManagedLog::LOGGER->LogStop("AllocatedEvaluatorClr2Java::AllocatedEvaluatorClr2Java");
+			  ////jmethodID jmidGetNameServerInfo = env->GetMethodID(jclassAllocatedEvaluator, "getNameServerInfo", "()Ljava/lang/String;");
+			  ////_jstringNameServerInfo = CommonUtilities::CallGetMethodNewGlobalRef<jstring>(env, _jobjectAllocatedEvaluator, jmidGetNameServerInfo);
+			  ////_jstringNameServerInfo = nameServerInfo;
+
+			  ////ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::GetNameServerInfo");
+			  _nameServerInfo = ManagedStringFromJavaString(env, nameServerInfo);
+
+              ManagedLog::LOGGER->LogStop("AllocatedEvaluatorClr2Java::AllocatedEvaluatorClr2Java:" + _evaluatorId);
             }
 
             AllocatedEvaluatorClr2Java::~AllocatedEvaluatorClr2Java() {
@@ -59,17 +68,17 @@ namespace Org {
                 env->DeleteGlobalRef(_jobjectAllocatedEvaluator);
               }
 
-              if (_jstringId != NULL) {
-                env->DeleteGlobalRef(_jstringId);
-              }
+			  ////if (_jstringId != NULL) {
+              ////  env->DeleteGlobalRef(_jstringId);
+              ////}
 
-              if (_jstringNameServerInfo != NULL) {
-                env->DeleteGlobalRef(_jstringNameServerInfo);
-              }
+              ////if (_jstringNameServerInfo != NULL) {
+              ////  env->DeleteGlobalRef(_jstringNameServerInfo);
+              ////}
             }
 
             void AllocatedEvaluatorClr2Java::SubmitContext(String^ evaluatorConfigStr, String^ contextConfigStr) {
-              ManagedLog::LOGGER->LogStart("AllocatedEvaluatorClr2Java::SubmitContext");
+              ManagedLog::LOGGER->LogStart("AllocatedEvaluatorClr2Java::SubmitContext:" + evaluatorConfigStr);
               JNIEnv *env = RetrieveEnv(_jvm);
               jclass jclassAllocatedEvaluator = env->GetObjectClass(_jobjectAllocatedEvaluator);
               jmethodID jmidSubmitContext = env->GetMethodID(jclassAllocatedEvaluator, "submitContextString", "(Ljava/lang/String;Ljava/lang/String;)V");
@@ -87,7 +96,7 @@ namespace Org {
             }
 
             void AllocatedEvaluatorClr2Java::SubmitContextAndTask(String^ evaluatorConfigStr, String^ contextConfigStr, String^ taskConfigStr) {
-              ManagedLog::LOGGER->LogStart("AllocatedEvaluatorClr2Java::SubmitContextAndTask");
+              ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::SubmitContextAndTask:" + taskConfigStr);
               JNIEnv *env = RetrieveEnv(_jvm);
               jclass jclassAllocatedEvaluator = env->GetObjectClass(_jobjectAllocatedEvaluator);
               jmethodID jmidSubmitContextAndTask = env->GetMethodID(jclassAllocatedEvaluator, "submitContextAndTaskString", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
@@ -96,13 +105,14 @@ namespace Org {
                 ManagedLog::LOGGER->Log("jmidSubmitContextAndTask is NULL");
                 return;
               }
+			  ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::SubmitContextAndTask2:" + taskConfigStr);
               env->CallObjectMethod(
                 _jobjectAllocatedEvaluator,
                 jmidSubmitContextAndTask,
                 JavaStringFromManagedString(env, evaluatorConfigStr),
                 JavaStringFromManagedString(env, contextConfigStr),
                 JavaStringFromManagedString(env, taskConfigStr));
-              ManagedLog::LOGGER->LogStop("AllocatedEvaluatorClr2Java::SubmitContextAndTask");
+			  ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::SubmitContextAndTask:" + taskConfigStr);
             }
 
             void AllocatedEvaluatorClr2Java::SubmitContextAndService(String^ evaluatorConfigStr, String^ contextConfigStr, String^ serviceConfigStr) {
@@ -166,15 +176,17 @@ namespace Org {
             }
 
             String^ AllocatedEvaluatorClr2Java::GetId() {
-              ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::GetId");
-              JNIEnv *env = RetrieveEnv(_jvm);
-              return ManagedStringFromJavaString(env, _jstringId);
+				////ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::GetId");
+				////JNIEnv *env = RetrieveEnv(_jvm);
+				////return ManagedStringFromJavaString(env, _jstringId);
+				return _evaluatorId;
             }
 
             String^ AllocatedEvaluatorClr2Java::GetNameServerInfo() {
-              ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::GetNameServerInfo");
-              JNIEnv *env = RetrieveEnv(_jvm);
-              return ManagedStringFromJavaString(env, _jstringNameServerInfo);
+              ////ManagedLog::LOGGER->Log("AllocatedEvaluatorClr2Java::GetNameServerInfo");
+              ////JNIEnv *env = RetrieveEnv(_jvm);
+              ////return ManagedStringFromJavaString(env, _jstringNameServerInfo);
+			  return _nameServerInfo;
             }
 
             IEvaluatorDescriptor^ AllocatedEvaluatorClr2Java::GetEvaluatorDescriptor() {

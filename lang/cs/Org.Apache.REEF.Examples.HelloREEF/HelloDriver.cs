@@ -46,7 +46,7 @@ namespace Org.Apache.REEF.Examples.HelloREEF
         public void OnNext(IAllocatedEvaluator allocatedEvaluator)
         {
             var taskConfiguration = TaskConfiguration.ConfigurationModule
-                .Set(TaskConfiguration.Identifier, "HelloTask")
+                .Set(TaskConfiguration.Identifier, "HelloTask-" + allocatedEvaluator.Id)
                 .Set(TaskConfiguration.Task, GenericType<HelloTask>.Class)
                 .Build();
             allocatedEvaluator.SubmitTask(taskConfiguration);

@@ -40,12 +40,15 @@ namespace Org.Apache.REEF.Driver.Bridge
 
         public static void Call_ClrSystemAllocatedEvaluatorHandler_OnNext(ulong handle, IAllocatedEvaluatorClr2Java clr2Java)
         {
-            using (LOGGER.LogFunction("ClrSystemHandlerWrapper::Call_ClrSystemAllocatedEvaluatorHandler_OnNext"))
+            LOGGER.Log(Level.Info, "$$$ClrSystemHandlerWrapper::Call_ClrSystemAllocatedEvaluatorHandler_OnNext: {0}, time: {1}", clr2Java.GetId(), DateTime.Now);
+            using (LOGGER.LogFunction("ClrSystemHandlerWrapper::Call_ClrSystemAllocatedEvaluatorHandler_OnNext:" + clr2Java.GetId()))
             {
                 GCHandle gc = GCHandle.FromIntPtr((IntPtr)handle);
                 ClrSystemHandler<IAllocatedEvaluator> obj = (ClrSystemHandler<IAllocatedEvaluator>)gc.Target;
-                obj.OnNext(new AllocatedEvaluator(clr2Java, _driverBridge.ConfigurationProviders));
-            }       
+                ////obj.OnNext(new AllocatedEvaluator(clr2Java, _driverBridge.ConfigurationProviders));
+                obj.OnNext(new AllocatedEvaluator(clr2Java, _driverBridge.ConfigurationStringForProviders));
+            }
+            LOGGER.Log(Level.Info, "$$$End of ClrSystemHandlerWrapper::Call_ClrSystemAllocatedEvaluatorHandler_OnNext: {0}, time: {1}", clr2Java.GetId(), DateTime.Now);
         }
 
         public static void Call_ClrSystemActiveContextHandler_OnNext(ulong handle, IActiveContextClr2Java clr2Java)

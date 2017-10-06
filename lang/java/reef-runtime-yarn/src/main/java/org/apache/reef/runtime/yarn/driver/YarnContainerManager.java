@@ -55,6 +55,8 @@ import javax.inject.Inject;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.PrivilegedExceptionAction;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -151,13 +153,15 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
   @Override
   public void onContainersAllocated(final List<Container> allocatedContainers) {
 
+    LOG.log(Level.INFO, "$$$YarnContainermanager.onContainersAllocated, number of containers received {0}",
+        allocatedContainers.size());
     String id = null; // ID is used for logging only
 
-    if (LOG.isLoggable(Level.FINE)) {
+    if (LOG.isLoggable(Level.INFO)) {
 
       id = String.format("%s:%d", Thread.currentThread().getName().replace(' ', '_'), System.currentTimeMillis());
 
-      LOG.log(Level.FINE, "TIME: Allocated Containers {0} {1} of {2}",
+      LOG.log(Level.INFO, "$$$TIME: Allocated Containers {0} {1} of {2}",
           new Object[] {id, allocatedContainers.size(), this.containerRequestCounter.get()});
     }
 
@@ -482,6 +486,7 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
   void onContainerRequest(final AMRMClient.ContainerRequest... containerRequests) {
 
     synchronized (this) {
+      LOG.log(Level.INFO, "YarnContainerManager:onContainerRequest#: {0}", containerRequests.length);
       this.containerRequestCounter.incrementBy(containerRequests.length);
       this.requestsBeforeSentToRM.addAll(Arrays.asList(containerRequests));
       this.doHomogeneousRequests();
@@ -496,22 +501,35 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
    */
   private void handleNewContainer(final Container container) {
 
-    LOG.log(Level.FINE, "allocated container: id[ {0} ]", container.getId());
+    DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+    LOG.log(Level.INFO, "$$$allocated container: id[ {0} ], requestId: {1}, nodeId: {2} at {3}.", new Object[] {
+        container.getId(), container.getAllocationRequestId(), container.getNodeId(),
+        dateFormat.format(new Date())});
 
     synchronized (this) {
 
       if (!matchContainerWithPendingRequest(container)) {
-        LOG.log(Level.WARNING, "Got an extra container {0} that doesn't match, releasing...", container.getId());
+        LOG.log(Level.WARNING, "Got an extra container {0} with requestId {1} that doesn't match, releasing...",
+            new Object[] {container.getId(), Long.toOctalString(container.getAllocationRequestId())});
         this.resourceManager.releaseAssignedContainer(container.getId());
         return;
       }
 
+      LOG.log(Level.WARNING, "handleNewContainer.requestsAfterSentToRM size: {0}", requestsAfterSentToRM.size());
       final AMRMClient.ContainerRequest matchedRequest = this.requestsAfterSentToRM.peek();
 
       this.containerRequestCounter.decrement();
       this.containers.add(container);
 
-      LOG.log(Level.FINEST, "{0} matched with {1}", new Object[] {container, matchedRequest});
+      String reqNodes = "";
+      if (matchedRequest.getNodes() != null) {
+        for (String n : matchedRequest.getNodes()) {
+          reqNodes = reqNodes + n + ",";
+        }
+      }
+      LOG.log(Level.INFO, "Received container requestId: {0} with node: {1}, matched with requestId {2} with node: {3}",
+          new Object[] {container.getAllocationRequestId(), container.getNodeId(),
+          matchedRequest.getAllocationRequestId(), reqNodes});
 
       // Due to the bug YARN-314 and the workings of AMRMCClientAsync, when x-priority m-capacity zero-container
       // request and x-priority n-capacity nonzero-container request are sent together, where m > n, RM ignores
@@ -523,6 +541,8 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
       // (i.e. a specific rack request can be ignored)
       if (this.requestsAfterSentToRM.size() > 1) {
         try {
+          LOG.log(Level.INFO, "YarnContainerManager.handleNewContainer.removeContainerRequest {0}",
+              requestsAfterSentToRM.size());
           this.resourceManager.removeContainerRequest(matchedRequest);
         } catch (final Exception e) {
           LOG.log(Level.WARNING, "Error removing request from Async AMRM client queue: " + matchedRequest, e);
@@ -530,9 +550,10 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
       }
 
       this.requestsAfterSentToRM.remove();
+      LOG.log(Level.INFO, "YarnContainerManager.handleNewContainer.before calling doHomogeneousRequests");
       this.doHomogeneousRequests();
 
-      LOG.log(Level.FINEST, "Allocated Container: memory = {0}, core number = {1}",
+      LOG.log(Level.INFO, "Allocated Container matched: memory = {0}, core number = {1}",
           new Object[] {container.getResource().getMemory(), container.getResource().getVirtualCores()});
 
       this.reefEventHandlers.onResourceAllocation(ResourceEventImpl.newAllocationBuilder()
@@ -549,6 +570,8 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
   }
 
   private synchronized void doHomogeneousRequests() {
+    LOG.log(Level.INFO, "YarnContainerManager.doHomogeneousRequests, requestsAfterSentToRM : {0}",
+        requestsAfterSentToRM.size());
     if (this.requestsAfterSentToRM.isEmpty()) {
       final AMRMClient.ContainerRequest firstRequest = this.requestsBeforeSentToRM.peek();
 
@@ -557,6 +580,8 @@ final class YarnContainerManager implements AMRMClientAsync.CallbackHandler, NMC
         final AMRMClient.ContainerRequest homogeneousRequest = this.requestsBeforeSentToRM.remove();
         this.resourceManager.addContainerRequest(homogeneousRequest);
         this.requestsAfterSentToRM.add(homogeneousRequest);
+        LOG.log(Level.INFO, "YarnContainerManager.doHomogeneousRequests.getAllocationRequestId: {0}",
+            homogeneousRequest.getAllocationRequestId());
       }
     }
   }

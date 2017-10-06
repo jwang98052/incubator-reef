@@ -16,6 +16,7 @@
 // under the License.
 
 using System;
+using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Tang.Annotations;
 

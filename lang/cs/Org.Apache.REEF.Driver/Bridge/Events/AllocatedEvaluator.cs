@@ -43,21 +43,39 @@ namespace Org.Apache.REEF.Driver.Bridge.Events
 
         public AllocatedEvaluator(IAllocatedEvaluatorClr2Java clr2Java, ISet<IConfigurationProvider> configurationProviders)
         {
-            _serializer = new AvroConfigurationSerializer();
-
-            var evaluatorConfig = TangFactory.GetTang().NewConfigurationBuilder().Build();
-            foreach (var configurationProvider in configurationProviders)
+            using (LOGGER.LogFunction("AllocatedEvaluator::AllocatedEvaluator:" + clr2Java.GetId()))
             {
-                evaluatorConfig = Configurations.Merge(evaluatorConfig, configurationProvider.GetConfiguration());
+                _serializer = new AvroConfigurationSerializer();
+
+                var evaluatorConfig = TangFactory.GetTang().NewConfigurationBuilder().Build();
+                foreach (var configurationProvider in configurationProviders)
+                {
+                    evaluatorConfig = Configurations.Merge(evaluatorConfig, configurationProvider.GetConfiguration());
+                }
+
+                _evaluatorConfigStr = _serializer.ToString(evaluatorConfig);
+
+                Clr2Java = clr2Java;
+                Id = Clr2Java.GetId();
+                ProcessNewEvaluator();
+
+                NameServerInfo = Clr2Java.GetNameServerInfo();
             }
+        }
 
-            _evaluatorConfigStr = _serializer.ToString(evaluatorConfig);
+        public AllocatedEvaluator(IAllocatedEvaluatorClr2Java clr2Java, string configuration)
+        {
+            using (LOGGER.LogFunction("AllocatedEvaluator::AllocatedEvaluator:" + clr2Java.GetId()))
+            {
+                _serializer = new AvroConfigurationSerializer();
+                _evaluatorConfigStr = configuration;
 
-            Clr2Java = clr2Java;
-            Id = Clr2Java.GetId();
-            ProcessNewEvaluator();
+                Clr2Java = clr2Java;
+                Id = Clr2Java.GetId();
+                ProcessNewEvaluator();
 
-            NameServerInfo = Clr2Java.GetNameServerInfo();
+                NameServerInfo = Clr2Java.GetNameServerInfo();
+            }
         }
 
         public string Id { get; private set; }
@@ -134,23 +152,23 @@ namespace Org.Apache.REEF.Driver.Bridge.Events
         private void ProcessNewEvaluator()
         {
             _evaluatorDescriptor = Clr2Java.GetEvaluatorDescriptor();
-            lock (EvaluatorRequestor.Evaluators)
-            {
-                foreach (KeyValuePair<string, IEvaluatorDescriptor> pair in EvaluatorRequestor.Evaluators)
-                {
-                    if (pair.Value.Equals(_evaluatorDescriptor))
-                    {
-                        var key = pair.Key;
-                        EvaluatorRequestor.Evaluators.Remove(key);
-                        var assignedId = key.Substring(0, key.LastIndexOf(EvaluatorRequestor.BatchIdxSeparator));
+            ////lock (EvaluatorRequestor.Evaluators)
+            ////{
+            ////    foreach (KeyValuePair<string, IEvaluatorDescriptor> pair in EvaluatorRequestor.Evaluators)
+            ////    {
+            ////        if (pair.Value.Equals(_evaluatorDescriptor))
+            ////        {
+            ////            var key = pair.Key;
+            ////            EvaluatorRequestor.Evaluators.Remove(key);
+            ////            var assignedId = key.Substring(0, key.LastIndexOf(EvaluatorRequestor.BatchIdxSeparator));
 
-                        LOGGER.Log(Level.Verbose, "Received evaluator [{0}] of memory {1}MB that matches request of {2}MB with batch id [{3}].", 
-                            Id, _evaluatorDescriptor.Memory, pair.Value.Memory, assignedId);
-                        EvaluatorBatchId = assignedId;
-                        break;
-                    }
-                }
-            }
+            ////            LOGGER.Log(Level.Info, "Received evaluator [{0}] of memory {1}MB that matches request of {2}MB with batch id [{3}].", 
+            ////                Id, _evaluatorDescriptor.Memory, pair.Value.Memory, assignedId);
+            ////            EvaluatorBatchId = assignedId;
+            ////            break;
+            ////        }
+            ////    }
+            ////}
         }
     }
 }

@@ -51,6 +51,8 @@ under the License.
         <bundle.snappy>false</bundle.snappy>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hadoop.version>2.7.0</hadoop.version>
+        <hadoop1.version>2.7.1.2.3.5.0-81</hadoop1.version>
+        <!--<hadoop.version>3.0.0-alpha4</hadoop.version>-->
         <spark.version>2.1.0</spark.version>
         <avro.version>1.8.1</avro.version>
         <parquet.version>1.9.0</parquet.version>
@@ -580,8 +582,9 @@ under the License.
             <dependency>
                 <groupId>org.apache.hadoop</groupId>
                 <artifactId>hadoop-yarn-client</artifactId>
-                <version>${hadoop.version}</version>
+                <version>${hadoop1.version}</version>
                 <scope>provided</scope>
+                <!--<systemPath>${rootPath}\hadoop-yarn-client-2.7.1.2.3.5.0-81.jar</systemPath>-->
                 <exclusions>
                     <exclusion>
                         <groupId>org.slf4j</groupId>
@@ -602,8 +605,9 @@ under the License.
             <dependency>
                 <groupId>org.apache.hadoop</groupId>
                 <artifactId>hadoop-yarn-api</artifactId>
-                <version>${hadoop.version}</version>
+                <version>${hadoop1.version}</version>
                 <scope>provided</scope>
+                <!--<systemPath>${rootPath}\hadoop-yarn-api-2.7.1.2.3.5.0-81.jar</systemPath>-->
                 <exclusions>
                     <exclusion>
                         <groupId>org.slf4j</groupId>

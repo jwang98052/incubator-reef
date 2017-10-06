@@ -18,9 +18,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.Driver;
 using Org.Apache.REEF.Driver.Evaluator;
+using Org.Apache.REEF.Driver.Task;
 using Org.Apache.REEF.Tang.Annotations;
 using Org.Apache.REEF.Tang.Util;
 using Org.Apache.REEF.Utilities.Logging;
@@ -30,7 +32,8 @@ namespace Org.Apache.REEF.Examples.HelloREEF
     /// <summary>
     /// The Driver for HelloREEF: It requests a single Evaluator and then submits the HelloTask to it.
     /// </summary>
-    public sealed class HelloDriverYarn : IObserver<IAllocatedEvaluator>, IObserver<IDriverStarted>
+    public sealed class HelloDriverYarn : IObserver<IAllocatedEvaluator>, IObserver<IDriverStarted>, 
+        IObserver<IFailedEvaluator>, IObserver<IFailedTask>, IObserver<ICompletedTask>, IObserver<IRunningTask>
     {
         private static readonly Logger Logger = Logger.GetLogger(typeof(HelloDriver));
         private readonly IEvaluatorRequestor _evaluatorRequestor;
@@ -45,20 +48,26 @@ namespace Org.Apache.REEF.Examples.HelloREEF
         /// </summary>
         private readonly bool _relaxLocality;
 
+        private readonly int _numberOfContainers;
+
         /// <summary>
         /// Constructor of the driver
         /// </summary>
         /// <param name="evaluatorRequestor">Evaluator Requestor</param>
         /// <param name="nodeNames">Node names for evaluators</param>
         /// <param name="relaxLocality">Relax indicator of evaluator node request</param>
+        /// <param name="numberOfContainers">Relax indicator of evaluator node request</param>
         [Inject]
         private HelloDriverYarn(IEvaluatorRequestor evaluatorRequestor,
             [Parameter(typeof(NodeNames))] ISet<string> nodeNames,
-            [Parameter(typeof(RelaxLocality))] bool relaxLocality)
+            [Parameter(typeof(RelaxLocality))] bool relaxLocality,
+            [Parameter(typeof(NumberOfContainers))] int numberOfContainers)
         {
-            _evaluatorRequestor = evaluatorRequestor;
+            Logger.Log(Level.Info, "HelloDriverYarn Driver: numberOfContainers: {0}.", numberOfContainers);
+           _evaluatorRequestor = evaluatorRequestor;
             _nodeNames = nodeNames.ToList();
             _relaxLocality = relaxLocality;
+            _numberOfContainers = numberOfContainers;
         }
 
         /// <summary>
@@ -67,13 +76,20 @@ namespace Org.Apache.REEF.Examples.HelloREEF
         /// <param name="allocatedEvaluator"></param>
         public void OnNext(IAllocatedEvaluator allocatedEvaluator)
         {
-            Logger.Log(Level.Info, "Received allocatedEvaluator-HostName: " + allocatedEvaluator.GetEvaluatorDescriptor().NodeDescriptor.HostName);
-            var taskConfiguration = TaskConfiguration.ConfigurationModule
-                .Set(TaskConfiguration.Identifier, "HelloTask")
-                .Set(TaskConfiguration.Task, GenericType<HelloTask>.Class)
-                .Build();
-            allocatedEvaluator.SubmitTask(taskConfiguration);
-        }
+            var d1 = DateTime.Now;
+            Logger.Log(Level.Info, "Received allocatedEvaluator-HostName: {0}, id {1}, thread id: {2}, time {3} ", allocatedEvaluator.GetEvaluatorDescriptor().NodeDescriptor.HostName, allocatedEvaluator.Id, Thread.CurrentThread.ManagedThreadId, d1);
+            using (Logger.LogFunction("IAllocatedEvaluator handler:" + allocatedEvaluator.Id + "IAllocatedEvaluator.OnNext"))
+            {
+                var taskConfiguration = TaskConfiguration.ConfigurationModule
+                    .Set(TaskConfiguration.Identifier, "HelloTask-" + allocatedEvaluator.Id)
+                    .Set(TaskConfiguration.Task, GenericType<HelloTask>.Class)
+                    .Build();
+                 allocatedEvaluator.SubmitTask(taskConfiguration);
+            }
+            var d2 = DateTime.Now;
+            var di = (d2 - d1).Milliseconds;
+            Logger.Log(Level.Info, "End of allocatedEvaluator-HostName: {0}, id {1}, thread id: {2}, time {3}, duration: {4} ", allocatedEvaluator.GetEvaluatorDescriptor().NodeDescriptor.HostName, allocatedEvaluator.Id, Thread.CurrentThread.ManagedThreadId, d2, di);
+        }                                              
 
         public void OnError(Exception error)
         {
@@ -90,7 +106,7 @@ namespace Org.Apache.REEF.Examples.HelloREEF
         /// <param name="driverStarted"></param>
         public void OnNext(IDriverStarted driverStarted)
         {
-            Logger.Log(Level.Info, string.Format("HelloDriver started at {0}", driverStarted.StartTime));
+            Logger.Log(Level.Info, string.Format("Received IDriverStarted at {0}", driverStarted.StartTime));
 
             if (_nodeNames != null && _nodeNames.Count > 0)
             {
@@ -105,8 +121,71 @@ namespace Org.Apache.REEF.Examples.HelloREEF
             {
                 _evaluatorRequestor.Submit(_evaluatorRequestor.NewBuilder()
                     .SetMegabytes(64)
+                    .SetNumber(_numberOfContainers)
+                    .SetCores(1)
                     .Build());
             }
+        }
+
+        void IObserver<ICompletedTask>.OnNext(ICompletedTask value)
+        {
+            Logger.Log(Level.Info, string.Format("Received ICompletedTask: {0} with evaluator id: {1} at {2}", value.Id, value.ActiveContext.EvaluatorId, DateTime.Now));
+            value.ActiveContext.Dispose();
+        }
+
+        void IObserver<IFailedTask>.OnNext(IFailedTask value)
+        {
+            Logger.Log(Level.Info, string.Format("Received IFailedTask: {0} with evaluator id: {1} at {2}.", value.Id, value.GetActiveContext().Value.EvaluatorId, DateTime.Now));
+            value.GetActiveContext().Value.Dispose();
+        }
+
+        void IObserver<IFailedEvaluator>.OnNext(IFailedEvaluator value)
+        {
+            Logger.Log(Level.Info, string.Format("Received IFailedEvaluator: {0} at {1}", value.Id, DateTime.Now));
+        }
+
+        void IObserver<IRunningTask>.OnNext(IRunningTask value)
+        {
+            Logger.Log(Level.Info, string.Format("Received IRunningTask: {0} with evaluator id: {1} at {2}", value.Id, value.ActiveContext.EvaluatorId, DateTime.Now));
+        }
+
+        void IObserver<ICompletedTask>.OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        void IObserver<ICompletedTask>.OnCompleted()
+        {
+            throw new NotImplementedException();
+        }
+
+        void IObserver<IFailedTask>.OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        void IObserver<IFailedTask>.OnCompleted()
+        {
+            throw new NotImplementedException();
+        }
+        void IObserver<IFailedEvaluator>.OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        void IObserver<IFailedEvaluator>.OnCompleted()
+        {
+            throw new NotImplementedException();
+        }
+
+        void IObserver<IRunningTask>.OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        void IObserver<IRunningTask>.OnCompleted()
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -118,5 +197,10 @@ namespace Org.Apache.REEF.Examples.HelloREEF
     [NamedParameter(documentation: "RelaxLocality for specifying evaluator node names", shortName: "RelaxLocality", defaultValue: "true")]
     internal class RelaxLocality : Name<bool>
     {        
+    }
+
+    [NamedParameter(documentation: "NumberOfContainers", defaultValue: "1")]
+    internal class NumberOfContainers : Name<int>
+    {
     }
 }

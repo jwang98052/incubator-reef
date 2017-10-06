@@ -37,6 +37,7 @@ namespace Org.Apache.REEF.Driver.Bridge
     {
         // Level.Verbose (since enum is not suppoted for TANG, we use a string here)
         private const string _verboseLevel = "Verbose";
+        private const string _infoLevel = "Info";
 
         [NamedParameter(documentation: "The start point for application logic. Event fired after the Driver is done initializing.")]
         public class DriverStartedHandlers : Name<ISet<IObserver<IDriverStarted>>>
@@ -153,7 +154,7 @@ namespace Org.Apache.REEF.Driver.Bridge
         {
         }
 
-        [NamedParameter("Custom Trace Level", "TraceLevel", defaultValue: _verboseLevel)]
+        [NamedParameter("Custom Trace Level", "TraceLevel", defaultValue: _infoLevel)]
         public class TraceLevel : Name<string>
         {
         }

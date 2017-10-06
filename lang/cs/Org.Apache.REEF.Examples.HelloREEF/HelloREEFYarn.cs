@@ -60,14 +60,18 @@ namespace Org.Apache.REEF.Examples.HelloREEF
         /// </summary>
         private readonly IList<string> _nodeNames;
 
+        private readonly int _numberOfContainers;
+
         [Inject]
         private HelloREEFYarn(IYarnREEFClient reefClient, 
             JobRequestBuilder jobRequestBuilder,
-            [Parameter(typeof(NodeNames))] ISet<string> nodeNames)
+            [Parameter(typeof(NodeNames))] ISet<string> nodeNames,
+            [Parameter(typeof(NumberOfContainers))] int numberOfContainers)
         {
             _reefClient = reefClient;
             _jobRequestBuilder = jobRequestBuilder;
             _nodeNames = nodeNames.ToList();
+            _numberOfContainers = numberOfContainers;
         }
 
         /// <summary>
@@ -78,11 +82,16 @@ namespace Org.Apache.REEF.Examples.HelloREEF
             // The driver configuration contains all the needed handler bindings
             var helloDriverConfiguration = DriverConfiguration.ConfigurationModule
                 .Set(DriverConfiguration.OnEvaluatorAllocated, GenericType<HelloDriverYarn>.Class)
-                .Set(DriverConfiguration.OnDriverStarted, GenericType<HelloDriverYarn>.Class)              
+                .Set(DriverConfiguration.OnDriverStarted, GenericType<HelloDriverYarn>.Class)   
+                .Set(DriverConfiguration.OnTaskCompleted, GenericType<HelloDriverYarn>.Class)
+                .Set(DriverConfiguration.OnTaskFailed, GenericType<HelloDriverYarn>.Class)
+                .Set(DriverConfiguration.OnEvaluatorFailed, GenericType<HelloDriverYarn>.Class)
+                .Set(DriverConfiguration.OnTaskRunning, GenericType<HelloDriverYarn>.Class)
                 .Build();
 
             var driverConfig = TangFactory.GetTang()
-                .NewConfigurationBuilder(helloDriverConfiguration);
+                .NewConfigurationBuilder(helloDriverConfiguration)
+                .BindIntNamedParam<NumberOfContainers>(_numberOfContainers.ToString());
 
             foreach (var n in _nodeNames)
             {
@@ -94,11 +103,12 @@ namespace Org.Apache.REEF.Examples.HelloREEF
                 .AddDriverConfiguration(driverConfig.Build())
                 .AddGlobalAssemblyForType(typeof(HelloDriverYarn))
                 .SetJobIdentifier("HelloREEF")
-                .SetJavaLogLevel(JavaLoggingSetting.Verbose)
+                .SetDriverMemory(10240)
+                .SetJavaLogLevel(JavaLoggingSetting.Verbose)                
                 .Build();
 
             var result = _reefClient.SubmitAndGetJobStatus(helloJobRequest);
-            LogApplicationReport();
+            //// LogApplicationReport();
 
             //// This is an example to Kill Job Application
             //// KillApplication(result.AppId);
@@ -171,16 +181,20 @@ namespace Org.Apache.REEF.Examples.HelloREEF
                 .Build();
 
             var tcpPortConfig = TcpPortConfigurationModule.ConfigurationModule
-                .Set(TcpPortConfigurationModule.PortRangeStart, args.Length > 2 ? args[2] : DefaultPortRangeStart)
-                .Set(TcpPortConfigurationModule.PortRangeCount, args.Length > 3 ? args[3] : DefaultPortRangeCount)
+                .Set(TcpPortConfigurationModule.PortRangeStart, args.Length > 3 ? args[3] : DefaultPortRangeStart)
+                .Set(TcpPortConfigurationModule.PortRangeCount, args.Length > 4 ? args[4] : DefaultPortRangeCount)
                 .Build();
 
-            return Configurations.Merge(clientConfig, tcpPortConfig);
+            var c = TangFactory.GetTang().NewConfigurationBuilder()
+                .BindIntNamedParam<NumberOfContainers>(args[2])
+                .Build();
+
+            return Configurations.Merge(clientConfig, tcpPortConfig, c);
         }
 
         /// <summary>
         /// HelloREEF example running on YARN
-        /// Usage: Org.Apache.REEF.Examples.HelloREEF SecurityTokenId SecurityTokenPw [portRangerStart] [portRangeCount] [nodeName1] [nodeName2]...
+        /// Usage: Org.Apache.REEF.Examples.HelloREEF SecurityTokenId SecurityTokenPw 1000 [portRangerStart] [portRangeCount] [nodeName1] [nodeName2]...
         /// </summary>
         /// <param name="args"></param>
         public static void MainYarn(string[] args)
@@ -188,9 +202,9 @@ namespace Org.Apache.REEF.Examples.HelloREEF
             var configBuilder = TangFactory.GetTang()
                 .NewConfigurationBuilder(GetRuntimeConfiguration(args));
 
-            if (args.Length > 4)
+            if (args.Length > 5)
             {
-                for (int i = 4; i < args.Length; i++)
+                for (int i = 5; i < args.Length; i++)
                 {
                     configBuilder.BindSetEntry<NodeNames, string>(GenericType<NodeNames>.Class, args[i]);
                 }

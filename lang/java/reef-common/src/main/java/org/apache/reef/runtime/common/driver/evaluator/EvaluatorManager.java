@@ -62,7 +62,10 @@ import org.apache.reef.wake.time.event.Alarm;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
@@ -551,7 +554,11 @@ public final class EvaluatorManager implements Identifiable, AutoCloseable {
   }
 
   public void onResourceLaunch(final ResourceLaunchEvent resourceLaunchEvent) {
+    DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+    LOG.log(Level.INFO, "$$$EvaluatorManager:onResourceLaunch1:{0} at: {1}.",
+        new Object[] {resourceLaunchEvent.getIdentifier(), dateFormat.format(new Date())});
     synchronized (this.evaluatorDescriptor) {
+      LOG.log(Level.INFO, "$$$EvaluatorManager:onResourceLaunch2:{0}.", resourceLaunchEvent.getIdentifier());
       if (this.stateManager.isAllocated()) {
         this.stateManager.setSubmitted();
         this.resourceLaunchHandler.onNext(resourceLaunchEvent);

@@ -39,7 +39,7 @@ namespace Org.Apache.REEF.Tests.Functional.Bridge
             TestRun(DriverConfigurations(), typeof(HelloSimpleEventHandlers), 2, "simpleHandler", "local", testFolder);
             ValidateSuccessForLocalRuntime(1, testFolder: testFolder);
             ValidateMessageSuccessfullyLoggedForDriver("Evaluator is assigned with 3072 MB of memory and 1 cores.", testFolder);
-            CleanUp(testFolder);
+            ////CleanUp(testFolder);
         }
 
         private IConfiguration DriverConfigurations()
