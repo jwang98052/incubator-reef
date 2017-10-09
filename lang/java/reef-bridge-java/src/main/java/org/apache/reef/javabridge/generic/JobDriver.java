@@ -56,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -125,8 +126,8 @@ public final class JobDriver {
   private boolean isRestarted = false;
   // We are holding on to following on bridge side.
   // Need to add references here so that GC does not collect them.
-  private final HashMap<String, AllocatedEvaluatorBridge> allocatedEvaluatorBridges =
-      new HashMap<>();
+  private final ConcurrentHashMap<String, AllocatedEvaluatorBridge> allocatedEvaluatorBridges =
+      new ConcurrentHashMap<>();
   private EvaluatorRequestorBridge evaluatorRequestorBridge;
 
 
@@ -248,9 +249,7 @@ public final class JobDriver {
         this.allocatedEvaluatorBridgeFactory.getAllocatedEvaluatorBridge(eval, this.nameServerInfo);
     LOG.log(Level.INFO, "JobDriver.Allocated Evaluator: 3, {0}, time: {1}", new Object[]{eval.getId(),
         dateFormat.format(new Date())});
-    synchronized (allocatedEvaluatorBridges) {
-      allocatedEvaluatorBridges.put(allocatedEvaluatorBridge.getId(), allocatedEvaluatorBridge);
-    }
+    allocatedEvaluatorBridges.put(allocatedEvaluatorBridge.getId(), allocatedEvaluatorBridge);
     LOG.log(Level.INFO, "$$$$JobDriver.Allocated Evaluator: 4, {0}, time: {1}, nameservice: {2}",
         new Object[]{eval.getId(), dateFormat.format(new Date()), this.nameServerInfo});
     NativeInterop.clrSystemAllocatedEvaluatorHandlerOnNext(
