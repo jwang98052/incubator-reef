@@ -104,7 +104,7 @@ namespace Org.Apache.REEF.Examples.HelloREEF
                 .AddGlobalAssemblyForType(typeof(HelloDriverYarn))
                 .SetJobIdentifier("HelloREEF")
                 .SetDriverMemory(10240)
-                .SetJavaLogLevel(JavaLoggingSetting.Verbose)                
+                ////.SetJavaLogLevel(JavaLoggingSetting.Verbose)                
                 .Build();
 
             var result = _reefClient.SubmitAndGetJobStatus(helloJobRequest);

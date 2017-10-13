@@ -110,12 +110,15 @@ namespace Org.Apache.REEF.Examples.HelloREEF
 
             if (_nodeNames != null && _nodeNames.Count > 0)
             {
-                _evaluatorRequestor.Submit(_evaluatorRequestor.NewBuilder()
-                    .AddNodeNames(_nodeNames)
-                    .SetMegabytes(64)
-                    .SetNumber(_nodeNames.Count)
-                    .SetRelaxLocality(_relaxLocality)
-                    .Build());
+                for (var i = 0; i < _numberOfContainers; i++)
+                {
+                    _evaluatorRequestor.Submit(_evaluatorRequestor.NewBuilder()
+                        .AddNodeNames(_nodeNames)
+                        .SetMegabytes(64)
+                        .SetNumber(1)
+                        .SetRelaxLocality(_relaxLocality)
+                        .Build());
+                }
             }
             else
             {

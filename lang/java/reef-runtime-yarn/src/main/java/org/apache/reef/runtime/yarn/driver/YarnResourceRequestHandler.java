@@ -42,12 +42,14 @@ public final class YarnResourceRequestHandler implements ResourceRequestHandler 
   private static final Logger LOG = Logger.getLogger(YarnResourceRequestHandler.class.getName());
   private final YarnContainerRequestHandler yarnContainerRequestHandler;
   private final ApplicationMasterRegistration registration;
+  private int requestId = 0;
 
   @Inject
   YarnResourceRequestHandler(final YarnContainerRequestHandler yarnContainerRequestHandler,
                              final ApplicationMasterRegistration registration) {
     this.yarnContainerRequestHandler = yarnContainerRequestHandler;
     this.registration = registration;
+    LOG.log(Level.INFO, "$$$YarnResourceRequestHandler constructor");
   }
 
   @Override
@@ -68,26 +70,23 @@ public final class YarnResourceRequestHandler implements ResourceRequestHandler 
     final Resource resource = getResource(resourceRequestEvent);
     final boolean relaxLocality = resourceRequestEvent.getRelaxLocality().orElse(true);
 
-    final AMRMClient.ContainerRequest[] containerRequests =
-        new AMRMClient.ContainerRequest[resourceRequestEvent.getResourceCount()];
+    AMRMClient.ContainerRequest[] containerRequests;
 
-    int requestId = 0;
     final int count = resourceRequestEvent.getResourceCount();
     if (nodes == null) {
+      containerRequests = new AMRMClient.ContainerRequest[count];
       for (int i = 0; i < count; i++) {
         containerRequests[i] = new AMRMClient.ContainerRequest(resource, null, racks, pri, requestId++, relaxLocality);
       }
     } else {
-      for (int i = 0; i < nodes.length; i++) {
-        LOG.log(Level.INFO, "Creating ContainerRequest for node: {0}, requestid: {1}.",
-            new Object[] {nodes[i], requestId});
-        containerRequests[i] = new AMRMClient.ContainerRequest(resource,
-            new String[] {nodes[i]}, racks, pri, requestId++, relaxLocality);
+      if (count != 1) {
+        LOG.log(Level.WARNING, "Expect number of container to be 1 when node name is not null. But the count is {0}.",
+            count);
       }
-      if (count != nodes.length) {
-        LOG.log(Level.WARNING, "Ask for {0} containers but supplied {1} node names.",
-            new Object[] {count, nodes.length});
-      }
+      LOG.log(Level.INFO, "Creating ContainerRequest for node: {0}, requestid: {1}.",
+          new Object[] {nodes.length, requestId});
+      containerRequests = new AMRMClient.ContainerRequest[1];
+      containerRequests[0] = new AMRMClient.ContainerRequest(resource, nodes, racks, pri, requestId++, relaxLocality);
     }
 
     LOG.log(Level.INFO, "$$$Last request id: {0}.", requestId);
