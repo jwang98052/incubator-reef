@@ -50,8 +50,7 @@ under the License.
         <reef.log.dir>${project.build.directory}/log</reef.log.dir>
         <bundle.snappy>false</bundle.snappy>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <hadoop.version>2.7.0</hadoop.version>
-        <hadoop1.version>2.7.1.2.3.5.0-81</hadoop1.version>
+        <hadoop.version>2.7.1.2.3.5.0-81</hadoop.version>
         <!--<hadoop.version>3.0.0-alpha4</hadoop.version>-->
         <spark.version>2.1.0</spark.version>
         <avro.version>1.8.1</avro.version>
@@ -108,6 +107,19 @@ under the License.
         </pluginRepository>
     </pluginRepositories>
 
+    <repositories>
+      <repository>
+        <id>msdata-visualstudio.com-bigdata</id>
+        <url>https://msdata.pkgs.visualstudio.com/_packaging/BigData/maven/v1</url>
+        <releases>
+          <enabled>true</enabled>
+        </releases>
+        <snapshots>
+          <enabled>true</enabled>
+        </snapshots>
+      </repository>
+    </repositories>
+    
     <build>
         <pluginManagement>
             <plugins>
@@ -582,7 +594,7 @@ under the License.
             <dependency>
                 <groupId>org.apache.hadoop</groupId>
                 <artifactId>hadoop-yarn-client</artifactId>
-                <version>${hadoop1.version}</version>
+                <version>${hadoop.version}</version>
                 <scope>provided</scope>
                 <!--<systemPath>${rootPath}\hadoop-yarn-client-2.7.1.2.3.5.0-81.jar</systemPath>-->
                 <exclusions>
@@ -605,7 +617,7 @@ under the License.
             <dependency>
                 <groupId>org.apache.hadoop</groupId>
                 <artifactId>hadoop-yarn-api</artifactId>
-                <version>${hadoop1.version}</version>
+                <version>${hadoop.version}</version>
                 <scope>provided</scope>
                 <!--<systemPath>${rootPath}\hadoop-yarn-api-2.7.1.2.3.5.0-81.jar</systemPath>-->
                 <exclusions>
