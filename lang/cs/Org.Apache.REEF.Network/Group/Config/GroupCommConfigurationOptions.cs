@@ -60,7 +60,7 @@ namespace Org.Apache.REEF.Network.Group.Config
         /// Current default sleep time is 2000ms. Default retry is 900. Total is 1800s, that is 30 min.
         /// </remarks>
         [NamedParameter("Retry times to wait for nodes to be registered", defaultValue: "900")]
-        internal sealed class RetryCountWaitingForRegistration : Name<int>
+        public sealed class RetryCountWaitingForRegistration : Name<int>
         {
         }
 

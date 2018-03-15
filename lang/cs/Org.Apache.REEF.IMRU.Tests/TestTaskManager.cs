@@ -16,6 +16,7 @@
 // under the License.
 
 using System;
+using System.Linq;
 using System.Threading;
 using NSubstitute;
 using Org.Apache.REEF.Driver.Context;
@@ -251,9 +252,46 @@ namespace Org.Apache.REEF.IMRU.Tests
 
             foreach (var t in tasks)
             {
-                taskManager.RecordKillClosingTask(t.Key);
+                taskManager.RecordKillTimeoutTask(t.Key, TaskState.TaskWaitingForClose);
             }
             Assert.True(taskManager.AreAllTasksInState(TaskState.TaskClosedByDriver));
+        }
+
+        /// <summary>
+        /// Test submitted task timeout.
+        /// </summary>
+        [Fact]
+        public void TestSubmittedTasksTimeout()
+        {
+            var taskManager = TaskManagerWithTasksSubmitted();
+
+            taskManager.RecordRunningTask(CreateMockRunningTask(MasterTaskId));
+            taskManager.RecordRunningTask(CreateMockRunningTask(MapperTaskIdPrefix + 1));
+
+            taskManager.RecordFailedTaskDuringRunningOrSubmissionState(CreateMockFailedTask(MapperTaskIdPrefix + 1, TaskManager.TaskSystemError));
+
+            taskManager.CloseAllRunningTasks(TaskManager.CloseTaskByDriver);
+            Thread.Sleep(100);
+
+            taskManager.RecordCompletedTask(CreateMockCompletedTask(MasterTaskId));
+
+            var failedTasks = taskManager.TasksTimeoutInState(TaskState.TaskFailedBySystemError, 50);
+            Assert.Equal(failedTasks.Count, 1);
+
+            if (failedTasks.Any())
+            {
+                var submittedTasks = taskManager.TasksInState(TaskState.TaskSubmitted);
+                if (submittedTasks.Any())
+                {
+                    Assert.Equal(submittedTasks.Count, 1);
+                    foreach (var t in submittedTasks)
+                    {
+                        taskManager.RecordKillTimeoutTask(t.Key, TaskState.TaskSubmitted);
+                    }
+                }
+            }
+
+            Assert.True(taskManager.AreAllTasksInFinalState());
         }
 
         /// <summary>

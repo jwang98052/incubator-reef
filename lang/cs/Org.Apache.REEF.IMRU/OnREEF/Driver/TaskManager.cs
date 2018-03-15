@@ -317,18 +317,32 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             }
         }
 
+        /////// <summary>
+        /////// This method is called when task is submitted but not running. After timeout, driver is to kill the Evaluator.
+        /////// The task state should be updated to TaskFailedByEvaluatorFailure. 
+        /////// </summary>
+        /////// <param name="taskId"></param>
+        ////internal void RecordTaskFailForSubmitingTask(string taskId)
+        ////{
+        ////    var taskState = GetTaskState(taskId);
+        ////    if (taskState == StateMachine.TaskState.TaskSubmitted)
+        ////    {
+        ////        UpdateState(taskId, TaskStateEvent.FailedTaskEvaluatorError);
+        ////    }
+        ////}
+
         /// <summary>
-        /// Waiting for close task has no response in given time
+        /// Task with the state has no response in given time
         /// Driver will kill the evaluator and move the task to TaskFailedByEvaluatorFailure state
         /// </summary>
-        internal void RecordKillClosingTask(string taskId)
+        internal void RecordKillTimeoutTask(string taskId, TaskState state)
         {
             var taskInfo = GetTaskInfo(taskId);
-            if (!taskInfo.TaskState.CurrentState.Equals(TaskState.TaskWaitingForClose))
+            if (!taskInfo.TaskState.CurrentState.Equals(state))
             {
                 var msg = string.Format(CultureInfo.InvariantCulture,
-                           "The task [{0}] is in [{1}] state, expecting it is in TaskWaitingForClose state.",
-                           taskId, taskInfo.TaskState.CurrentState);
+                           "The task [{0}] is in [{1}] state, expecting it is in {2} state.",
+                           taskId, taskInfo.TaskState.CurrentState, state);
                 Logger.Log(Level.Error, msg);
                 throw new IMRUSystemException(msg);
             }
@@ -560,6 +574,24 @@ namespace Org.Apache.REEF.IMRU.OnREEF.Driver
             }
 
             return !notInFinalState.Any();
+        }
+
+        /// <summary>
+        /// Returns tasks that are in submitted state
+        /// </summary>
+        /// <returns></returns>
+        internal IEnumerable<KeyValuePair<string, TaskInfo>> SubmittedTasks()
+        {
+            return _tasks.Where(t => t.Value.TaskState.CurrentState.Equals(TaskState.TaskSubmitted));
+        }
+
+        /// <summary>
+        /// Returns tasks that are in specified state
+        /// </summary>
+        /// <returns></returns>
+        internal IList<KeyValuePair<string, TaskInfo>> TasksInState(TaskState state)
+        {
+            return _tasks.Where(t => t.Value.TaskState.CurrentState.Equals(state)).ToList();
         }
 
         private string ToLog(KeyValuePair<string, TaskInfo> t)

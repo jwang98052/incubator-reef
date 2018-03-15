@@ -54,7 +54,7 @@ public final class JobUploader {
   public JobFolder createJobFolderWithApplicationId(final String applicationId) throws IOException {
     final Path jobFolderPath = jobSubmissionDirectoryProvider.getJobSubmissionDirectoryPath(applicationId);
     final String finalJobFolderPath = jobFolderPath.toString();
-    LOG.log(Level.FINE, "Final job submission Directory: " + finalJobFolderPath);
+    LOG.log(Level.INFO, "$$$$$$$$$$$$$$$$Final job submission Directory: " + finalJobFolderPath);
     return createJobFolder(finalJobFolderPath);
   }
 
@@ -67,7 +67,7 @@ public final class JobUploader {
    * @throws IOException
    */
   public JobFolder createJobFolder(final String finalJobFolderPath) throws IOException {
-    LOG.log(Level.FINE, "Final job submission Directory: " + finalJobFolderPath);
+    LOG.log(Level.INFO, "$$$$$$$$$$$$$$$$Final job submission Directory: " + finalJobFolderPath);
     return new JobFolder(this.fileSystem, new Path(finalJobFolderPath));
   }
 

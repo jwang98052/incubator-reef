@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Org.Apache.REEF.Common.Tasks;
 using Org.Apache.REEF.IMRU.API;
 using Org.Apache.REEF.IMRU.OnREEF.IMRUTasks;
@@ -146,6 +147,7 @@ namespace Org.Apache.REEF.IMRU.Examples.PipelinedBroadcastReduce
             internal const int TaskFailureDuringTaskInitialization = 3;
             internal const int EvaluatorFailureDuringTaskDispose = 4;
             internal const int TaskFailureDuringTaskDispose = 5;
+            internal const int TaskHungInInit = 6;
 
             internal static bool IsEvaluatorFailure(int failureType)
             {
@@ -209,6 +211,11 @@ namespace Org.Apache.REEF.IMRU.Examples.PipelinedBroadcastReduce
                     _failureType == FailureType.TaskFailureDuringTaskInitialization)
                 {
                     SimulateFailure(0);
+                }
+
+                if (_failureType == FailureType.TaskHungInInit)
+                {
+                    SimulateHung(0);
                 }
             }
 
@@ -275,6 +282,21 @@ namespace Org.Apache.REEF.IMRU.Examples.PipelinedBroadcastReduce
                         // simulate task failure
                         throw new ArgumentNullException("Simulating task failure");
                     }
+                }
+            }
+
+            private void SimulateHung(int onIteration)
+            {
+                if (_iterations == onIteration &&
+                    _taskIdsToFail.FirstOrDefault(e => _taskId.StartsWith(e)) != null &&
+                    _taskIdsToFail.FirstOrDefault(e => _taskId.Equals(e + _maxRetryInRecovery)) == null &&
+                    _retryIndex < _totalNumberOfForcedFailures)
+                {
+                    Logger.Log(Level.Warning,
+                        "Simulating hung for taskId {0}",
+                        _taskId);
+
+                    Thread.Sleep(2 * 60 * 1000);
                 }
             }
         }

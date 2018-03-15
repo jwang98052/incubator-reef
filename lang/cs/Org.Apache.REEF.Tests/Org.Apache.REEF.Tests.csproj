@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
 or more contributor license agreements.  See the NOTICE file
@@ -134,6 +134,7 @@ under the License.
     <Compile Include="Functional\IMRU\TestExceptionInResultHandlerDispose.cs" />
     <Compile Include="Functional\IMRU\TestFailMapperEvaluatorOnWaitingForEvaluatorAndExecution.cs" />
     <Compile Include="Functional\IMRU\TestFailMapperEvaluatorsWithFailedResultHandlerOnDispose.cs" />
+    <Compile Include="Functional\IMRU\TestFailMapperTasksTimeoutOnInit.cs" />
     <Compile Include="Functional\IMRU\TestFailUpdateEvaluatorOnWaitingForEvaluator.cs" />
     <Compile Include="Functional\IMRU\TestFailMapperTasksOnDispose.cs" />
     <Compile Include="Functional\IMRU\TestFailMapperEvaluatorsOnDispose.cs" />

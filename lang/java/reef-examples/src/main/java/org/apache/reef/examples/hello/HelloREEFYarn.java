@@ -22,7 +22,10 @@ import org.apache.reef.client.DriverConfiguration;
 import org.apache.reef.client.DriverLauncher;
 import org.apache.reef.client.LauncherStatus;
 import org.apache.reef.runtime.yarn.client.YarnClientConfiguration;
+import org.apache.reef.runtime.yarn.client.YarnDriverConfiguration;
 import org.apache.reef.tang.Configuration;
+import org.apache.reef.tang.Configurations;
+import org.apache.reef.tang.Tang;
 import org.apache.reef.tang.exceptions.InjectionException;
 import org.apache.reef.util.EnvironmentUtils;
 
@@ -46,6 +49,11 @@ public final class HelloREEFYarn {
   /** The configuration of the runtime. */
   private static final Configuration RUNTIME_CONF = YarnClientConfiguration.CONF.build();
 
+
+  private static final Configuration RUNTIME_CONF1 = YarnDriverConfiguration.CONF
+    .set(YarnDriverConfiguration.JOB_SUBMISSION_DIRECTORY_PREFIX, "/vol1/tmp")
+    .build();
+
   /** The configuration of the HelloREEF driver. */
   private static final Configuration DRIVER_CONF = DriverConfiguration.CONF
       .set(DriverConfiguration.DRIVER_IDENTIFIER, "HelloREEF")
@@ -60,7 +68,8 @@ public final class HelloREEFYarn {
    * @throws InjectionException configuration error.
    */
   public static void main(final String[] args) throws InjectionException {
-    final LauncherStatus status = DriverLauncher.getLauncher(RUNTIME_CONF).run(DRIVER_CONF, JOB_TIMEOUT);
+    final LauncherStatus status = DriverLauncher.getLauncher(Configurations.merge(RUNTIME_CONF, RUNTIME_CONF1))
+        .run(DRIVER_CONF, JOB_TIMEOUT);
     LOG.log(Level.INFO, "REEF job completed: {0}", status);
   }
 

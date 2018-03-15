@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+using Org.Apache.REEF.Driver.Bridge;
 using Org.Apache.REEF.IMRU.API;
 using Org.Apache.REEF.IMRU.Examples.PipelinedBroadcastReduce;
+using Org.Apache.REEF.IMRU.OnREEF.Driver;
 using Org.Apache.REEF.IMRU.OnREEF.Parameters;
+using Org.Apache.REEF.Network.Group.Config;
 using Org.Apache.REEF.Tang.Implementations.Tang;
 using Org.Apache.REEF.Tang.Interface;
 using Org.Apache.REEF.Tang.Util;
@@ -27,7 +30,7 @@ using TestSenderMapFunction = Org.Apache.REEF.IMRU.Examples.PipelinedBroadcastRe
 namespace Org.Apache.REEF.Tests.Functional.IMRU
 {
     [Collection("FunctionalTests")]
-    public sealed class TestFailMapperTasksOnInit : TestFailMapperEvaluators
+    public sealed class TestFailMapperTasksTimeoutOnInit : TestFailMapperEvaluators
     {
         /// <summary>
         /// This test throws exception in two tasks during task initialization stage. 
@@ -50,24 +53,51 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
                 iterations,
                 mapperMemory,
                 updateTaskMemory,
-                NumberOfRetry,
+                2,
                 testFolder);
-            string[] lines = ReadLogFile(DriverStdout, "driver", testFolder, 240);
+            string[] lines = ReadLogFile(DriverStdout, "driver", testFolder, 600);
             var completedTaskCount = GetMessageCount(lines, CompletedTaskMessage);
             var failedEvaluatorCount = GetMessageCount(lines, FailedEvaluatorMessage);
             var failedTaskCount = GetMessageCount(lines, FailedTaskMessage);
             var jobSuccess = GetMessageCount(lines, DoneActionMessage);
 
-            // In each retry, there are 2 failed tasks.
+            // In each retry, there are 1 failed tasks.
             // Rest of the tasks should be canceled and send completed task event to the driver. 
-            Assert.Equal(0, failedEvaluatorCount);
-            Assert.Equal(NumberOfRetry * 2, failedTaskCount);
-            Assert.True(((NumberOfRetry + 1) * numTasks) - failedTaskCount >= completedTaskCount);
-            Assert.True((NumberOfRetry * numTasks) - failedTaskCount < completedTaskCount);
+            ////Assert.Equal(NumberOfRetry - 1, failedEvaluatorCount);
+            ////Assert.Equal(NumberOfRetry * 2, failedTaskCount);
+            ////Assert.True(((NumberOfRetry + 1) * numTasks) - failedTaskCount >= completedTaskCount);
+            ////Assert.True((NumberOfRetry * numTasks) - failedTaskCount < completedTaskCount);
 
             // eventually job succeeds
             Assert.Equal(1, jobSuccess);
             ////CleanUp(testFolder);
+        }
+
+        protected override IConfiguration DriverEventHandlerConfigurations<TMapInput, TMapOutput, TResult, TPartitionType>()
+        {
+            ////return REEF.Driver.DriverConfiguration.ConfigurationModule
+            ////    .Set(REEF.Driver.DriverConfiguration.OnEvaluatorAllocated,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnDriverStarted,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnContextActive,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnTaskCompleted,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnEvaluatorFailed,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnContextFailed,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnTaskFailed,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.OnTaskRunning,
+            ////        GenericType<IMRUDriver<TMapInput, TMapOutput, TResult, TPartitionType>>.Class)
+            ////    .Set(REEF.Driver.DriverConfiguration.CustomTraceLevel, TraceLevel.Verbose.ToString())
+            ////    .Build();
+
+            return TangFactory.GetTang().NewConfigurationBuilder(base.DriverEventHandlerConfigurations<TMapInput, TMapOutput, TResult, TPartitionType>())
+                .BindIntNamedParam<SubmittedTaskTimeoutMs>("10")
+                .Build();
         }
 
         /// <summary>
@@ -83,10 +113,10 @@ namespace Org.Apache.REEF.Tests.Functional.IMRU
 
             return TangFactory.GetTang().NewConfigurationBuilder(c)
                 .BindSetEntry<PipelinedBroadcastAndReduceWithFaultTolerant.TaskIdsToFail, string>(GenericType<PipelinedBroadcastAndReduceWithFaultTolerant.TaskIdsToFail>.Class, "IMRUMap-RandomInputPartition-2-")
-                .BindSetEntry<PipelinedBroadcastAndReduceWithFaultTolerant.TaskIdsToFail, string>(GenericType<PipelinedBroadcastAndReduceWithFaultTolerant.TaskIdsToFail>.Class, "IMRUMap-RandomInputPartition-3-")
-                .BindIntNamedParam<PipelinedBroadcastAndReduceWithFaultTolerant.FailureType>(PipelinedBroadcastAndReduceWithFaultTolerant.FailureType.TaskFailureDuringTaskInitialization.ToString())
+                .BindIntNamedParam<PipelinedBroadcastAndReduceWithFaultTolerant.FailureType>(PipelinedBroadcastAndReduceWithFaultTolerant.FailureType.TaskHungInInit.ToString())
                 .BindNamedParameter(typeof(MaxRetryNumberInRecovery), NumberOfRetry.ToString())
                 .BindNamedParameter(typeof(PipelinedBroadcastAndReduceWithFaultTolerant.TotalNumberOfForcedFailures), NumberOfRetry.ToString())
+                .BindIntNamedParam<GroupCommConfigurationOptions.RetryCountWaitingForRegistration>("2")
                 .Build();
         }
     }
